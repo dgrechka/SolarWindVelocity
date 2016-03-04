@@ -3,20 +3,19 @@ pred <- read.csv('SampleData/prediction.csv', header = T, sep = ';')
 colnames(obs) <- c('t','v')
 colnames(pred) <- c('t','v')
 
-step <- 25
-left <-0
-right <- 750
-
 mv <- 300
 
 filtered_pred <- pred[pred$v != mv,]
 
 joined <- rbind(obs,filtered_pred)
 
-nodes <- seq(from=left, to=right, by=step)
+nodes <- joined$t
+nodes <- nodes[c(c(T),logical(9))] #take every 10th reference point as node point
+if(nodes[length(nodes)]!=joined$t[length(joined$t)])
+  nodes <- c(nodes,joined$t[length(joined$t)]) #the last ref point must always present
 
-poly_f <-function(p,step,t) {
-  i <- t %/% step
+poly_f <- function(p,x,t) {
+  i <- findInterval(t,x)-1
   return (p[i*3+1]*t*t+p[i*3+2]*t+p[i*3+3]);
 }
 
@@ -41,9 +40,9 @@ getP <- function(initSlope,X,Y) {
   return(res)
 }
 
-p_to_polyF <- function(p,step) {
+p_to_polyF <- function(p,nodes) {
   return(function(x) {
-    poly_f(p,step,x)
+    poly_f(p,nodes,x)
     }
   );
 }
@@ -53,11 +52,12 @@ testInitSlope <- 0
 toMinimize <- function(x) {
   sqErr <- 0
   p1 <- getP(testInitSlope,nodes,x)
-  cur_x_fitted <- p_to_polyF(p1,step)
+  cur_fitted <- p_to_polyF(p1,nodes)
   for(j in 1:nrow(joined)){
-    dif1 <- cur_x_fitted(joined$t[j])-joined$v[j]
-    if(! is.na(dif1))
-      sqErr <- sqErr + dif1*dif1
+    dif1 <- cur_fitted(joined$t[j])-joined$v[j]
+    if(! is.na(dif1)) {
+      sqErr <- sqErr + dif1*dif1 #difference with measured data
+    }
   }
   return(sqErr)
 }
@@ -68,23 +68,21 @@ opt_res1 <- optim(init,toMinimize, method = "BFGS",control = list(maxit = 500))
 
 plot(obs$t,obs$v,
      xlab = "Time (hours since 03.02.2016  18:00:00)",
-     ylab="Velocity (km/s)",
+     ylab = "Velocity (km/s)",
      main = "Solar Wind near Earth\n2nd order piecewise polynomial approximation of observation data",
-     xlim=c(0,760))
+     xlim=c(0,760),
+     ylim=c(250,850))
 points(filtered_pred$t,filtered_pred$v,col="blue")
 res1_p <- getP(testInitSlope,nodes,opt_res1$par)
-res1_poly <- p_to_polyF(res1_p,step)
-curve(res1_poly,add = T, from = 0, to = 760,col = "red")
+res1_poly <- p_to_polyF(res1_p,nodes)
+curve(res1_poly,add = T, from = 0, to = 760,col = "red",n=2000)
 
-#testX = c(0,5,10,15,20)
+#testX = c(0,7,10,18,20)
 #testY = c(10,5,5,12,14)
 
 #p1 <-getP(-3,testX,testY)
+#poly_p1 <- p_to_polyF(p1,testX)
 
 
-
-#poly_f1 <- function(x) {
-#  return(poly_f(p1,5,x))
-#}
 #plot(testX,testY,ylim=c(0,20))
-#curve(poly_f1,add = T, from = 0, to = 20)
+#curve(poly_p1,add = T, from = 0, to = 20)
