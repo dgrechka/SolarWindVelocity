@@ -71,11 +71,12 @@ plot(obs$t,obs$v,
      ylab = "Velocity (km/s)",
      main = "Solar Wind near Earth\n2nd order piecewise polynomial approximation of observation data",
      xlim=c(0,760),
-     ylim=c(250,850))
+     ylim=c(250,850),
+     sub="Black points - observations; Blue points - predictions; Red curve - trend")
 points(filtered_pred$t,filtered_pred$v,col="blue")
 res1_p <- getP(testInitSlope,nodes,opt_res1$par)
 res1_poly <- p_to_polyF(res1_p,nodes)
-curve(res1_poly,add = T, from = 0, to = 760,col = "red",n=2000)
+curve(res1_poly,add = T, from = 0, to = 760,col = "red",n=2000,lwd=2)
 
 #testX = c(0,7,10,18,20)
 #testY = c(10,5,5,12,14)
