@@ -1,3 +1,18 @@
+require(RCurl)
+require(RJSONIO)
+
+lambda <- 0193
+
+h = basicTextGatherer()
+h$reset()
+curlPerform(url = paste("http://213.131.1.4/~usopp/sw_forecast.php?lambda=",lambda,sep=''),
+            httpheader=c(Accept="text/plain", 'Content-Type' = "application/json"),              
+            writefunction = h$update)
+reply = h$value()
+data=fromJSON(h$value())
+
+
+
 obs <- read.csv('SampleData/observations.csv', header = T, sep = ';')
 pred <- read.csv('SampleData/prediction.csv', header = T, sep = ';')
 colnames(obs) <- c('t','v')
