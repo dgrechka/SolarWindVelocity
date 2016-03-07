@@ -16,6 +16,7 @@ if(nodes[length(nodes)]!=joined$t[length(joined$t)])
 
 poly_f <- function(p,x,t) {
   i <- findInterval(t,x)-1
+  i <- pmax(0,pmin(i,length(x)-1))
   return (p[i*3+1]*t*t+p[i*3+2]*t+p[i*3+3]);
 }
 
@@ -79,13 +80,49 @@ fitted_y <- opt_res1$par[1:length(opt_res1$par)-1]
 res1_p <- getP(opt_res1$par[length(opt_res1$par)],nodes,fitted_y)
 res1_poly <- p_to_polyF(res1_p,nodes)
 curve(res1_poly,add = T, from = 0, to = 760,col = "red",n=2000,lwd=2)
+points(nodes,fitted_y,col="green")
 
-#testX = c(0,7,10,18,20)
+#testX = c(0,7,10,18,19)
 #testY = c(10,5,5,12,14)
 
 #p1 <-getP(-3,testX,testY)
 #poly_p1 <- p_to_polyF(p1,testX)
 
 
-#plot(testX,testY,ylim=c(0,20))
-#curve(poly_p1,add = T, from = 0, to = 20)
+#plot(testX,testY,ylim=c(0,20),xlim=c(0,21))
+#curve(poly_p1,add = T, from = 0, to = 22)
+
+require(mcmc)
+
+lglk <- function(x) {
+  len <- length(x)
+  cur_y <- x[1:(len-2)]
+  cur_init_slope <- x[len-1]
+  sigma <- x[len]
+  if(sigma<=0)
+    return(-Inf)
+  res <- 0
+  p1 <- getP(cur_init_slope,nodes,cur_y)
+  cur_fitted <- p_to_polyF(p1,nodes)
+  for(j in 1:nrow(joined)){
+    fittedY <- cur_fitted(joined$t[j])
+    if(is.na(fittedY)) {
+      next()
+    }
+    a <- dnorm(joined$v[j], mean=fittedY, sd = sigma, log=T);
+    #cat("j:",j," lglk:",a,"\n");
+    #cat("node Y's:",cur_y,"\n")
+    #cat("obs X:",joined$t[j],"\n")
+    #cat("obs Y:",joined$v[j],"\n")
+    #cat("approx Y:",cur_fitted(joined$t[j]),"\n")
+    #cat("sigma:",sigma,"\n")
+    #cat("slope:",cur_init_slope,"\n\n")
+    res <- res + a
+  }
+  cat(" lglk:",a,"\n");
+  return(res)
+}
+
+init2 <- c(rep(400, length(nodes)),0,10)
+
+out <- metrop(lglk, init2, 10000)
