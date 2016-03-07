@@ -47,11 +47,12 @@ p_to_polyF <- function(p,nodes) {
   );
 }
 
-testInitSlope <- 0
-
 toMinimize <- function(x) {
+  len <- length(x)
+  cur_y <- x[1:len-1]
+  cur_init_slope <- x[len]
   sqErr <- 0
-  p1 <- getP(testInitSlope,nodes,x)
+  p1 <- getP(cur_init_slope,nodes,cur_y)
   cur_fitted <- p_to_polyF(p1,nodes)
   for(j in 1:nrow(joined)){
     dif1 <- cur_fitted(joined$t[j])-joined$v[j]
@@ -62,7 +63,7 @@ toMinimize <- function(x) {
   return(sqErr)
 }
 
-init <- rep(400, length(nodes))
+init <- c(rep(400, length(nodes)),0)
 
 opt_res1 <- optim(init,toMinimize, method = "BFGS",control = list(maxit = 500))
 
@@ -74,7 +75,8 @@ plot(obs$t,obs$v,
      ylim=c(250,850),
      sub="Black points - observations; Blue points - predictions; Red curve - trend")
 points(filtered_pred$t,filtered_pred$v,col="blue")
-res1_p <- getP(testInitSlope,nodes,opt_res1$par)
+fitted_y <- opt_res1$par[1:length(opt_res1$par)-1]
+res1_p <- getP(opt_res1$par[length(opt_res1$par)],nodes,fitted_y)
 res1_poly <- p_to_polyF(res1_p,nodes)
 curve(res1_poly,add = T, from = 0, to = 760,col = "red",n=2000,lwd=2)
 
