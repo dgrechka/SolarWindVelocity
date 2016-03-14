@@ -38,26 +38,27 @@ let simulate wind start_t stop_t (step_t:float) left_x right_x by_x =
 [<EntryPoint>]
 let main argv = 
     let stepKernel t = if t < -1.0 || t >= 1.0 then 0.0 else 1.0
+    let gaussianKernel t = exp(-t*t/2.0)
     
     let pulse1 = {
         EmergenceTime= 0.0;
         Power= 1.0
         Velocity= 1.0;
-        Kernel= stepKernel
+        Kernel= gaussianKernel
     }
 
     let pulse2 = { //slow
-        EmergenceTime= 5.0;
+        EmergenceTime= 10.0;
         Power= 0.5
         Velocity= 0.5;
-        Kernel= stepKernel
+        Kernel= gaussianKernel
     }
 
     let pulse3 = { //fast
-        EmergenceTime= 10.0;
-        Power= 1.5
-        Velocity= 1.5;
-        Kernel= stepKernel
+        EmergenceTime= 20.0;
+        Power= 2.0
+        Velocity= 2.0;
+        Kernel= gaussianKernel
     }
     
     let testWind = [pulse1; pulse2; pulse3]
@@ -67,10 +68,7 @@ let main argv =
     let space_step = 0.1
     let space_start = 0.0
     let space_end = 90.0
-    
-    let windFun1 = WindFuncForTime testWind 10.0
-    printfn "-10: %f\t0:%f\t10:%f" (windFun1 -10.0) (windFun1 0.0) (windFun1 10.0)
-
+        
 
     let simulation = simulate testWind time_start 60.0 time_step space_start space_end space_step
 
@@ -79,11 +77,7 @@ let main argv =
     ds.IsAutocommitEnabled <- false
     let windVar = ds.AddVariable<float>("wind",[|"x";"t"|])
     let timeAxis = ds.AddVariable<float>("t",[|"t"|])
-    let spaceAxis = ds.AddVariable<float>("x",[|"x"|])
-    let testVar = ds.AddVariable<float>("test",[|"x"|])
-
-    let a = sample windFun1 space_start space_end space_step
-    testVar.Append(List.toArray a);
+    let spaceAxis = ds.AddVariable<float>("x",[|"x"|])    
 
     List.iteri (fun i sample_vals ->
         let t = time_start+float(i)*time_step
