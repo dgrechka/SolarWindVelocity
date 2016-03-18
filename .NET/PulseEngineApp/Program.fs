@@ -31,13 +31,16 @@ let main argv =
     //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
     let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
     ds.IsAutocommitEnabled <- false
-    let windVar = ds.AddVariable<float>("wind",[|"x";"t"|])
+    let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
+    let windSpVar = ds.AddVariable<float>("windSpeed",[|"x";"t"|])
     let timeAxis = ds.AddVariable<float>("t",[|"t"|])
     let spaceAxis = ds.AddVariable<float>("x",[|"x"|])    
 
-    List.iteri (fun i sample_vals ->
+    List.iteri (fun i sim_step_data ->
+        let sample_vals,sampls_speed = sim_step_data
         let t = time_start+float(i)*time_step
         windVar.Append(List.toArray sample_vals,"t")
+        windSpVar.Append(List.toArray sampls_speed,"t")
         timeAxis.Append([|t|]);
         )
         simulation
