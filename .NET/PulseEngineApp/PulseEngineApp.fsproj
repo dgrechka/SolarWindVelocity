@@ -86,6 +86,10 @@
       <HintPath>..\packages\Angara.Serialization.Json.0.1.2.0\lib\net461\Angara.Serialization.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Angara.Statistics">
+      <HintPath>..\packages\Angara.Statistics.0.1.2.0\lib\net461\Angara.Statistics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Angara.Table">
       <HintPath>..\ext\table\Angara.Table.dll</HintPath>
     </Reference>

@@ -5,6 +5,11 @@ VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "PulseEngineApp", "PulseEngineApp\PulseEngineApp.fsproj", "{4687B048-B69F-4C32-B801-002224A6A452}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3ADFCA04-CEFD-40EC-BF42-4CDAEBE3F35C}"
+	ProjectSection(SolutionItems) = preProject
+		..\2.VisualInspectionOfTimesries.fsx = ..\2.VisualInspectionOfTimesries.fsx
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
