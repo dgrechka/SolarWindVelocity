@@ -50,7 +50,7 @@ getApproxF <- function(nodes,x,y) {
   return(sqErr)
   }
   
-  opt_res1 <- optim(init,toMinimize, method = "BFGS",control = list(maxit = 500))
+  opt_res1 <- optim(init,toMinimize, method = "BFGS",control = list(maxit = 10000, trace=6))
   
   res1_p <- getP(testInitSlope,nodes,opt_res1$par)
   res1_poly <- p_to_polyF(res1_p,nodes)
