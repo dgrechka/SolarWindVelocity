@@ -8,6 +8,7 @@ type Pulse = {
     EmergenceTime: Time
     Power: double //1.0 is default
     Velocity: float
+    A: float
     Kernel: KernelFunc
     }
 
@@ -26,7 +27,7 @@ let WindFuncForTime wind time =
     sum
 
 
-let WindAvgVelocityForTime wind time = 
+let WindAvgAForTime wind time = 
     let SheftedKernelFun pulse time = 
         let delta = (time-pulse.EmergenceTime)*pulse.Velocity
         let f t = (pulse.Kernel (t-delta))
@@ -35,8 +36,8 @@ let WindAvgVelocityForTime wind time =
         let portions = List.map (fun pulse -> SheftedKernelFun pulse time t) wind
         let total = List.sum portions
         let total_back = 1.0/total
-        let portions_velocities = List.zip portions (List.map (fun pulse -> pulse.Velocity) wind)
-        let velocity = List.map (fun pair -> let p,v = pair in p*v*p*total_back) portions_velocities |> List.sum
+        let portions_A = List.zip portions (List.map (fun pulse -> pulse.A) wind)
+        let velocity = List.map (fun pair -> let p,a = pair in p*a*p*total_back) portions_A |> List.sum
         velocity
     avg
 
@@ -50,12 +51,14 @@ let simulate wind start_t stop_t (step_t:float) left_x right_x by_x =
     List.iter (fun pulse -> assert(pulse.Kernel(0.0)=1.0)) wind
 
     let N = int((stop_t-start_t)/step_t)
-    List.init N ( fun i ->
+    Array.Parallel.init N ( fun i ->
+        printf "."
         let t = start_t+step_t*float(i)
         sample (WindFuncForTime wind t) left_x right_x by_x,
-        sample (WindAvgVelocityForTime wind t) left_x right_x by_x
-        )
+        sample (WindAvgAForTime wind t) left_x right_x by_x
+        ) |> List.ofArray
 
 type Kernels () =
     static member Step t = if t < -1.0 || t >= 1.0 then 0.0 else 1.0
     static member Gaussian t = exp(-t*t/2.0)
+    static member GaussianExt sigma t = exp(-t*t/(2.0*sigma*sigma))

@@ -10,7 +10,7 @@ let loadPulses (csvFile:string) =
             EmergenceTime=t;
             Power=p;
             Velocity=v;
-            Kernel=Kernels.Gaussian
+            Kernel=Kernels.GaussianExt 3.0
         }
     ) |> List.ofSeq
 
