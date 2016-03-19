@@ -39,17 +39,25 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 
 
     let wind = getWind predictorsT S_0 V_k P_w V_b
-        
-    let lglks: float seq = 
-        let current_lglk t v =
-            let avgVelocity = WindAvgAForTime wind t
-            let predAtEarth = avgVelocity D
-            let mu = V_b + predAtEarth //base level plus pulses
+    
+    let a = Table.Map ["t";"velocity"] (fun (t:float) (v:float) -> (t,v)) observationsT |> Array.ofSeq
+
+    let current_lglk p =
+        let t,v = p
+        let avgVelocity = WindAvgAForTime wind t
+        let predAtEarth = avgVelocity D
+        let mu = V_b + predAtEarth //base level plus pulses        
+        if System.Double.IsNaN mu then
+            improbable
+        else
             let distribution = Statistics.Normal(mu,Sigma)
-            let lglk = log_pdf distribution v
+            let lglk = log_pdf distribution (v * 60.0 * 60.0)
             lglk
-        Table.Map ["t";"velocity"] current_lglk observationsT
-    lglks |> Seq.sum       
+            
+    let res = Array.Parallel.map current_lglk a |> Seq.sum         
+    printf "."
+    res
+        
 
 [<EntryPoint>]
 let main argv =         
@@ -58,7 +66,7 @@ let main argv =
     let obs2 = Table.MapToColumn ["hours since 01.01.2015  1:00:00"] "t" (fun t -> t+1.0) obs
 
     let predictorsT = Table.Filter ["t"] (fun t -> t > 40.0 ) ch_data
-    let observationsT = Table.Filter ["t"] (fun t -> t > 40.0+168.0 ) obs2 //first 168 hours is burnin to enable first pulse reach the Earth
+    let observationsT = Table.Filter ["t"] (fun t -> t > 600.0 ) obs2
 
     let time_start = 0.0
     let time_step = 0.2
@@ -67,9 +75,24 @@ let main argv =
     let space_start = 0.0 
     let space_end = 1.5e+8        
 
+    let toKmPhour kmPs = kmPs*60.0*60.0
     
+    let eps = System.Double.Epsilon
+
+    let estimate predictorsT observationsT =
+        let parameters = Parameters.Empty
+                            .Add("V_k",[|toKmPhour 40.0|],eps,toKmPhour 70.0,isLog=true)
+                            .Add("S_0",[|0.0|],0.0,20.0,isLog=false)
+                            .Add("V_b",[|toKmPhour 300.0|],eps,toKmPhour 500.0,isLog=true)
+                            .Add("D",[|1.5e+8|],1.47e+8,1.52e+8,isLog=false)
+                            .Add("Sigma",[|toKmPhour 10.0|],eps,toKmPhour 300.0,isLog=true)
+                            .Add("P_w",[|300.0*60.0*120.0|],300.0*60.0*10.0, 300.0*60.0*210.0,isLog=true)        
+        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 1000, 11)
+    let res = estimate predictorsT observationsT
+    Sampler.print res
+
     //simulation
-    
+    (*
     let testFastWind = getWind predictorsT 0.0 (40.0*60.0*60.0) (300.0*60.0*120.0) (300.0*60.0*60.0)    
 
     let simulation = simulate testFastWind time_start time_stop time_step space_start space_end space_step
@@ -95,5 +118,5 @@ let main argv =
     spaceAxis.Append(spaceAxisData)
 
     ds.Commit()        
-    
+    *)
     0 // return an integer exit code
