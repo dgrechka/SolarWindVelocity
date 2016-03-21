@@ -13,7 +13,7 @@ let getWind (predictorsT: Table) S_0 V_k P_w V_b =
         else
             let intercept = - V_k*S_0
             let A = intercept + V_k*area
-            let velocity = V_b+A
+            let velocity = (V_b+A)*60.0*60.0
             assert(A >= 0.0)
             let pulse = {
                 Power=1.0;
@@ -24,6 +24,8 @@ let getWind (predictorsT: Table) S_0 V_k P_w V_b =
             }
             Some(pulse)
     Table.Map ["t";"CHarea"] generatePulse predictorsT |> Seq.choose (fun a -> a) |> List.ofSeq
+
+let mutable bestLglk = System.Double.NegativeInfinity
 
 let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =        
     let V_k = p.GetValue "V_k" //velocity growth slope
@@ -40,7 +42,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 
     let wind = getWind predictorsT S_0 V_k P_w V_b
     
-    let a = Table.Map ["t";"velocity"] (fun (t:float) (v:float) -> (t,v)) observationsT |> Array.ofSeq
+    let data = Table.Map ["t";"velocity"] (fun (t:float) (v:float) -> (t,v)) observationsT
 
     let current_lglk p =
         let t,v = p
@@ -48,14 +50,19 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
         let predAtEarth = avgVelocity D
         let mu = V_b + predAtEarth //base level plus pulses        
         if System.Double.IsNaN mu then
-            improbable
+            log improbable
         else
             let distribution = Statistics.Normal(mu,Sigma)
-            let lglk = log_pdf distribution (v * 60.0 * 60.0)
+            let lglk = log_pdf distribution v
+            //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
             lglk
             
-    let res = Array.Parallel.map current_lglk a |> Seq.sum         
-    printf "."
+    let res = data |> Seq.filter (fun t -> not(System.Double.IsNaN(snd t))) |> Array.ofSeq |> Array.Parallel.map current_lglk |> Seq.sum         
+    if res>bestLglk then
+        printfn "\nlglk:%g\tV_b:%g\tV_k:%g\tS_0:%g\tP_w:%g\tSig:%g\tD:%g" res V_b V_k S_0 P_w Sigma D
+        bestLglk <- res
+    else
+        printf "."
     res
         
 
@@ -73,27 +80,27 @@ let main argv =
     let time_stop = 700.0
     let space_step = 0.5e+6
     let space_start = 0.0 
-    let space_end = 1.5e+8        
-
-    let toKmPhour kmPs = kmPs*60.0*60.0
+    let space_end = 1.5e+8
     
     let eps = System.Double.Epsilon
 
     let estimate predictorsT observationsT =
         let parameters = Parameters.Empty
-                            .Add("V_k",[|toKmPhour 40.0|],eps,toKmPhour 70.0,isLog=true)
+                            .Add("V_k",[|40.0|],eps,70.0,isLog=false)
                             .Add("S_0",[|0.0|],0.0,20.0,isLog=false)
-                            .Add("V_b",[|toKmPhour 300.0|],eps,toKmPhour 500.0,isLog=true)
+                            .Add("V_b",[|300.0|],eps,500.0,isLog=true)
                             .Add("D",[|1.5e+8|],1.47e+8,1.52e+8,isLog=false)
-                            .Add("Sigma",[|toKmPhour 10.0|],eps,toKmPhour 300.0,isLog=true)
-                            .Add("P_w",[|300.0*60.0*120.0|],300.0*60.0*10.0, 300.0*60.0*210.0,isLog=true)        
-        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 1000, 11)
-    let res = estimate predictorsT observationsT
+                            .Add("Sigma",[| 10.0|],eps, 300.0,isLog=true)
+                            .Add("P_w",[|300.0*60.0*120.0|],300.0*60.0*10.0, 300.0*60.0*210.0,isLog=false)        
+        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 5000, 1000)
+    let res = estimate predictorsT observationsT    
     Sampler.print res
 
     //simulation
     (*
-    let testFastWind = getWind predictorsT 0.0 (40.0*60.0*60.0) (300.0*60.0*120.0) (300.0*60.0*60.0)    
+    let V_b,V_k,S_0,P_w,Sigma,D = 3.29791e-12,1.73189e-203,8.14902,2.65327e+06,8.64551e-15,1.49356e+08
+
+    let testFastWind = getWind predictorsT S_0 V_k P_w V_b    
 
     let simulation = simulate testFastWind time_start time_stop time_step space_start space_end space_step
 
