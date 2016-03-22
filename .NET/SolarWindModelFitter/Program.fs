@@ -55,9 +55,8 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
             let distribution = Statistics.Normal(mu,Sigma)
             let lglk = log_pdf distribution v
             //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
-            lglk
-            
-    let res = data |> Seq.filter (fun t -> not(System.Double.IsNaN(snd t))) |> Array.ofSeq |> Array.Parallel.map current_lglk |> Seq.sum         
+            lglk    
+    let res = data |> Seq.filter (fun t -> not(System.Double.IsNaN(snd t))) |> Array.ofSeq |> Array.map current_lglk |> Seq.sum         
     if res>bestLglk then
         printfn "\nlglk:%g\tV_b:%g\tV_k:%g\tS_0:%g\tP_w:%g\tSig:%g\tD:%g" res V_b V_k S_0 P_w Sigma D
         bestLglk <- res
@@ -67,13 +66,33 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
         
 
 [<EntryPoint>]
-let main argv =         
+let main argv =     
+    let thinnObs = true
+    let seed : uint32 ref = ref 0u
+    if argv.Length>0
+        then System.UInt32.TryParse(argv.[0],seed) |> ignore
+    let rng = new MT19937(!seed)
+
+    printfn "Seed is %d" !seed
+
     let ch_data = Table.Load @"..\..\..\..\1.ChAreaApproximated.csv"
     let obs = Table.Load @"..\..\..\..\SampleData\ace_swepam_2015_1h.csv"
-    let obs2 = Table.MapToColumn ["hours since 01.01.2015  1:00:00"] "t" (fun t -> t+1.0) obs
+    let obs = Table.MapToColumn ["hours since 01.01.2015  1:00:00"] "t" (fun t -> t+1.0) obs
+    
+    let mutable counter = 0
+    let obs =
+        if thinnObs then
+            Table.Filter ["t"]  (fun (dummy:float) ->            
+            counter <- counter+1
+            counter%5=0            
+            ) obs
+        else obs
 
     let predictorsT = Table.Filter ["t"] (fun t -> t > 40.0 ) ch_data
-    let observationsT = Table.Filter ["t"] (fun t -> t > 600.0 ) obs2
+    let observationsT = Table.Filter ["t"] (fun t -> t > 600.0 ) obs
+
+    printfn "Predictor values count %d" predictorsT.RowsCount
+    printfn "Observation values count %d" observationsT.RowsCount
 
     let time_start = 0.0
     let time_step = 0.2
@@ -92,7 +111,7 @@ let main argv =
                             .Add("D",[|1.5e+8|],1.47e+8,1.52e+8,isLog=false)
                             .Add("Sigma",[| 10.0|],eps, 300.0,isLog=true)
                             .Add("P_w",[|300.0*60.0*120.0|],300.0*60.0*10.0, 300.0*60.0*210.0,isLog=false)        
-        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 5000, 1000)
+        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 5000, 1000,rng=rng)
     let res = estimate predictorsT observationsT    
     Sampler.print res
 

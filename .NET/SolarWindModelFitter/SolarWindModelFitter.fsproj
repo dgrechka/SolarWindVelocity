@@ -37,6 +37,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\Release\SolarWindModelFitter.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
+    <StartAction>Project</StartAction>
+    <StartArguments>1</StartArguments>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
