@@ -10,7 +10,8 @@ let loadPulses (csvFile:string) =
             EmergenceTime=t;
             Power=p;
             Velocity=v;
-            Kernel=Kernels.GaussianExt 3.0
+            Kernel=Kernels.GaussianExt 3.0;
+            A=v
         }
     ) |> List.ofSeq
 
@@ -32,15 +33,17 @@ let main argv =
     let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
     ds.IsAutocommitEnabled <- false
     let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
-    let windSpVar = ds.AddVariable<float>("windSpeed",[|"x";"t"|])
+    let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
+    let windMaxSpVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
     let timeAxis = ds.AddVariable<float>("t",[|"t"|])
     let spaceAxis = ds.AddVariable<float>("x",[|"x"|])    
 
     List.iteri (fun i sim_step_data ->
-        let sample_vals,sampls_speed = sim_step_data
+        let sample_vals,sampls_speed,sample_max_speed = sim_step_data
         let t = time_start+float(i)*time_step
         windVar.Append(List.toArray sample_vals,"t")
         windSpVar.Append(List.toArray sampls_speed,"t")
+        windMaxSpVar.Append(List.toArray sample_max_speed,"t")
         timeAxis.Append([|t|]);
         )
         simulation

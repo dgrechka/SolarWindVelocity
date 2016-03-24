@@ -64,8 +64,8 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 
     let current_lglk p =
         let t,v = p
-        let avgVelocity = WindAvgAForTime wind t
-        let predAtEarth = avgVelocity D
+        let maxVelocity = WindAMaxForTime wind t
+        let predAtEarth = maxVelocity D
         let mu = V_b + predAtEarth //base level plus pulses        
         if System.Double.IsNaN mu then
             log improbable
@@ -98,7 +98,7 @@ let main argv =
     printfn "Basic tests passed"
 
     //config
-    let doEstimate = false
+    let doEstimate = true
     let thinnObs = false
     let seed : uint32 ref = ref 0u
     if argv.Length>0
@@ -132,12 +132,12 @@ let main argv =
 
     let estimate predictorsT observationsT =
         let parameters = Parameters.Empty
-                            .Add("V_b",[|350.0|],eps,500.0,isLog=true,delay=1)
-                            .Add("V_1",[|37.6|],eps,200.0,isLog=false,delay=1)
-                            .Add("V_2",[|37.6|],eps,200.0,isLog=false,delay=1)
-                            .Add("S_0",[|2.1|],eps,10.0,isLog=true,delay=1)
-                            .Add("S_1",[|1.0|],eps,10.0,isLog=false,delay=1)
-                            .Add("S_2",[|1.0|],eps,10.0,isLog=false,delay=1)
+                            .Add("V_b",[|350.0|],eps,500.0,isLog=true,delay=0)
+                            .Add("V_1",[|37.6|],eps,200.0,isLog=false,delay=0)
+                            .Add("V_2",[|37.6|],eps,200.0,isLog=false,delay=0)
+                            .Add("S_0",[|2.1|],eps,10.0,isLog=true,delay=0)
+                            .Add("S_1",[|1.0|],eps,10.0,isLog=false,delay=0)
+                            .Add("S_2",[|1.0|],eps,10.0,isLog=false,delay=0)
                             .Add("D",[|1.83843e+08|],1.40e+8,2.00e+8,isLog=false,delay=0)
                             .Add("Sigma",[| 71.4027|],eps, 500.0,isLog=true,delay=0)
                             .Add("P_w",[|3.77509e+06|],300.0*60.0*10.0, 300.0*60.0*210.0,isLog=false,delay=0)        
@@ -175,7 +175,8 @@ let main argv =
         let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
         ds.IsAutocommitEnabled <- false
         let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
-        let windSpVar = ds.AddVariable<float>("windSpeed",[|"x";"t"|])
+        let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
+        let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
         let timeAxis = ds.AddVariable<float>("t",[|"t"|])
         let spaceAxis = ds.AddVariable<float>("x",[|"x"|])        
 
@@ -200,11 +201,12 @@ let main argv =
         printfn "simulated for %d time moments" (dummy.RowsCount)
 
         List.iteri (fun i sim_step_data ->
-            let sample_vals,sample_speed = sim_step_data
+            let sample_vals,sample_speed,sample_max_speed = sim_step_data
             let sample_speed_km_s = List.map (fun a -> a + V_b) sample_speed
             let t = time_start+float(i)*time_step                            
             windVar.Append(List.toArray sample_vals,"t")
             windSpVar.Append(List.toArray sample_speed_km_s,"t")
+            windSpMaxVar.Append(List.toArray sample_max_speed,"t")
             timeAxis.Append([|t|]);
             )
             simulation

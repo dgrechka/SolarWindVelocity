@@ -41,6 +41,16 @@ let WindAvgAForTime wind time =
         velocity
     avg
 
+let WindAMaxForTime wind time = 
+    let SheftedKernelFun pulse time = 
+        let delta = (time-pulse.EmergenceTime)*pulse.Velocity
+        let f t = (pulse.Kernel (t-delta))
+        f
+    let max t =
+        let As = List.map (fun pulse -> pulse.A*(SheftedKernelFun pulse time t)) wind
+        List.max As
+    max
+
 let sample (f:float -> float) left right (by:float) =
     let N = int((right-left)/by)
     List.init N (fun i -> f (left+by*float(i)))
@@ -57,7 +67,8 @@ let simulate wind start_t stop_t (step_t:float) left_x right_x by_x =
         if i%100 =0 then
             printf "(%g of %g)" t stop_t
         sample (WindFuncForTime wind t) left_x right_x by_x,
-        sample (WindAvgAForTime wind t) left_x right_x by_x
+        sample (WindAvgAForTime wind t) left_x right_x by_x,
+        sample (WindAMaxForTime wind t) left_x right_x by_x
         ) |> List.ofArray
 
 type Kernels () =
