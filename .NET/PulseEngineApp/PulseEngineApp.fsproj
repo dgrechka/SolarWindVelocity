@@ -59,6 +59,7 @@
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
+    <Content Include="License.txt" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Angara.Base">
@@ -85,8 +86,13 @@
       <HintPath>..\packages\Angara.Serialization.Json.0.1.2.0\lib\net461\Angara.Serialization.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Angara.Statistics">
+      <HintPath>..\packages\Angara.Statistics.0.1.1.0\lib\net461\Angara.Statistics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Angara.Table">
-      <HintPath>..\ext\table\Angara.Table.dll</HintPath>
+      <HintPath>..\packages\Angara.Table.0.1.1.0\lib\net461\Angara.Table.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="Ionic.Zip">
       <HintPath>..\packages\DotNetZip.1.9.8\lib\net20\Ionic.Zip.dll</HintPath>

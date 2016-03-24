@@ -54,6 +54,8 @@ let simulate wind start_t stop_t (step_t:float) left_x right_x by_x =
     Array.Parallel.init N ( fun i ->
         printf "."
         let t = start_t+step_t*float(i)
+        if i%100 =0 then
+            printf "(%g of %g)" t stop_t
         sample (WindFuncForTime wind t) left_x right_x by_x,
         sample (WindAvgAForTime wind t) left_x right_x by_x
         ) |> List.ofArray
