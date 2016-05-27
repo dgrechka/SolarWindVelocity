@@ -1,0 +1,91 @@
+---
+title: "Coronal Holes data features extraction"
+author: "Dmitry A. Grechka"
+date: "May 27, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Libraries used
+
+```{r dependencies,message=FALSE}
+library(caret)
+library(ggplot2)
+library(corrplot)
+```
+
+# Data sets
+
+There are two files of sun observations for 2015 year
+
+  * ch_2015_0193.dsv - green spectrum portion originated features
+  * ch_2015_0211.dsv - red spectrum portion originated features
+  
+There are blue spectrum (171) images, but there are no extracted features from them
+
+Working with ch_2015_0193.dsv fist
+
+```{r data load}
+ch_2015_0193 <- read.csv('SampleData/ch_2015_0193.dsv',
+                         sep = '\t',
+                         dec = ',',
+                        colClasses=c("dt_record"="character")
+                         )
+
+ch_2015_0193$dt_record <- strptime(ch_2015_0193$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ch_2015_0193$ts <- as.numeric(ch_2015_0193$dt_record)
+```
+
+# Data overview
+
+```{r data_overview}
+str(ch_2015_0193)
+```
+
+# Data cleanup
+
+There are variables that vary poorly
+
+```{r near_zero_vars}
+nzv_stats <- nearZeroVar(ch_2015_0193,saveMetrics = T)
+nzv_stats[nzv_stats$nzv,]
+
+nzv <- nearZeroVar(ch_2015_0193,saveMetrics = F)
+ch_2015_0193 <- ch_2015_0193[,index2vec(nzv,vars=ncol(ch_2015_0193)) != 1]
+
+str(ch_2015_0193)
+```
+
+#Transforms
+
+```{r transforms}
+ch_2015_0193$log_CHArea <- log(ch_2015_0193$CHArea)
+```
+
+#Correlations
+
+```{r correlations}
+numeric_vars <- colnames(ch_2015_0193[,!(names(ch_2015_0193) %in% c('fitsname','dt_record'))]) # omitting time
+
+corM <- cor(ch_2015_0193[,names(ch_2015_0193) %in% numeric_vars],use = 'complete.obs')
+varMcol<- colorRampPalette(c("red", "white", "blue"))(20)
+heatmap(x = corM, col = varMcol, symm = TRUE)
+#corrplot(corM,method = 'pie',order = 'hclust')
+```
+
+#Densities
+
+```{r densities plots}
+
+for(name in numeric_vars) {
+  plot(density(ch_2015_0193[[name]],na.rm=T),main = paste('Density of',name))
+}
+```
+
+# Acknowledgments
+
+I want to thank Skobeltsyn Institute of Nuclear Physics of Moscow State University <http://swx.sinp.msu.ru> that publishes observation data on space whether and especially Lucy Mukhametdinova from SINP MSU who gave me the data in convenient CSV form
