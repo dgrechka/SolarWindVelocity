@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
 ```
 
 
@@ -16,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(caret)
 library(ggplot2)
 library(corrplot)
+library(pracma)
 ```
 
 # Data sets
@@ -60,10 +62,36 @@ ch_2015_0193 <- ch_2015_0193[,index2vec(nzv,vars=ncol(ch_2015_0193)) != 1]
 str(ch_2015_0193)
 ```
 
+Also removing observations with missing values
+
+```{r missing values}
+ch_2015_0193 <- na.omit(ch_2015_0193)
+```
+
+#Srinking
+
+For basic exloratory purpose we will investigate first 2 month of data
+
+```{r shrinking}
+ch_2015_0193 <- ch_2015_0193[1:2160,]
+```
+
 #Transforms
 
+##Log transforms
+
+Replacing some variables with log-transformed variants to remove skewness.
+
 ```{r transforms}
-ch_2015_0193$log_CHArea <- log(ch_2015_0193$CHArea)
+varsToLogBames <- c('CHArea','CHMaxIntensity','CHVarIntensity','CHPerimeter','CorrectAlongLat','CorrectAlongLon','RightSideCHMaxInt','LeftSideCHMaxInt','AboveCHMaxInt','BelowCHMaxInt','RightSideCHMeanInt','LeftSideCHMeanInt','AboveCHMeanInt','BelowCHMeanInt')
+for(name in varsToLogBames) {
+  par(mfrow=c(1,2)) 
+  ch_2015_0193[[paste0('log_',name)]] <- log(ch_2015_0193[[name]])
+  plot(density(ch_2015_0193[[name]],na.rm=T),main ='Before',ylab=paste('Density of ',name))
+  plot(density(ch_2015_0193[[paste0('log_',name)]],na.rm=T),main ='After',ylab=paste0('Density of log_',name))
+}
+
+ch_2015_0193 <- ch_2015_0193[,!(names(ch_2015_0193) %in% varsToLogBames)]
 ```
 
 #Correlations
@@ -83,6 +111,25 @@ heatmap(x = corM, col = varMcol, symm = TRUE)
 
 for(name in numeric_vars) {
   plot(density(ch_2015_0193[[name]],na.rm=T),main = paste('Density of',name))
+}
+```
+
+#Variation in time
+
+```{r variation in time}
+ts_var <- ch_2015_0193$ts
+ts_var_len <- length(ts_var)
+knots <- linspace(ts_var[1], ts_var[ts_var_len-1], 90*3) #for one year, knot every 6 hours
+
+for(name in numeric_vars) {
+  #cat(name)
+  variable <- ch_2015_0193[[name]]
+  len <- length(variable)
+  ppcub <- ppfit(ts_var, ch_2015_0193[[name]], knots, method = "cubic")
+  var_approximated <- ppval(ppcub, ts_var)
+  plot(ts_var,ch_2015_0193[[name]], xlab = 'time',ylab=name,pch=20,cex=.9)
+  lines(ts_var, var_approximated, col="red",lwd = 2)
+  #print('done')
 }
 ```
 
