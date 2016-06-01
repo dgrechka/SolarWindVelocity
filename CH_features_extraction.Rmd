@@ -9,15 +9,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(cache = TRUE)
 ```
-
+# Part 1: Data clean up and transforms
 
 # Libraries used
 
 ```{r dependencies,message=FALSE}
 library(caret)
-library(ggplot2)
-library(corrplot)
+library(oce)
 library(pracma)
+library(ggplot2)
 ```
 
 # Data sets
@@ -39,7 +39,9 @@ ch_2015_0193 <- read.csv('SampleData/ch_2015_0193.dsv',
                          )
 
 ch_2015_0193$dt_record <- strptime(ch_2015_0193$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
-ch_2015_0193$ts <- as.numeric(ch_2015_0193$dt_record)
+ch_2015_0193$ts_sec <- as.numeric(ch_2015_0193$dt_record)
+ch_2015_0193$ts <- (ch_2015_0193$ts_sec - ch_2015_0193$ts_sec[1])/3600;#hours
+
 ```
 
 # Data overview
@@ -83,7 +85,7 @@ ch_2015_0193 <- ch_2015_0193[1:2160,]
 Replacing some variables with log-transformed variants to remove skewness.
 
 ```{r transforms}
-varsToLogBames <- c('CHArea','CHMaxIntensity','CHVarIntensity','CHPerimeter','CorrectAlongLat','CorrectAlongLon','RightSideCHMaxInt','LeftSideCHMaxInt','AboveCHMaxInt','BelowCHMaxInt','RightSideCHMeanInt','LeftSideCHMeanInt','AboveCHMeanInt','BelowCHMeanInt')
+varsToLogBames <- c('CHArea','CHMaxIntensity','CHVarIntensity','CHPerimeter','CorrectAlongLat','CorrectAlongLon','RightSideCHMaxInt','AboveCHMaxInt','BelowCHMaxInt','RightSideCHMeanInt','BelowCHMeanInt')
 for(name in varsToLogBames) {
   par(mfrow=c(1,2)) 
   ch_2015_0193[[paste0('log_',name)]] <- log(ch_2015_0193[[name]])
@@ -97,7 +99,7 @@ ch_2015_0193 <- ch_2015_0193[,!(names(ch_2015_0193) %in% varsToLogBames)]
 #Correlations
 
 ```{r correlations}
-numeric_vars <- colnames(ch_2015_0193[,!(names(ch_2015_0193) %in% c('fitsname','dt_record'))]) # omitting time
+numeric_vars <- colnames(ch_2015_0193[,!(names(ch_2015_0193) %in% c('fitsname','dt_record','ts'))]) # omitting time
 
 corM <- cor(ch_2015_0193[,names(ch_2015_0193) %in% numeric_vars],use = 'complete.obs')
 varMcol<- colorRampPalette(c("red", "white", "blue"))(20)
@@ -116,20 +118,84 @@ for(name in numeric_vars) {
 
 #Variation in time
 
-```{r variation in time}
+some of the varaibles are consistent in time while other contain lot of noise.
+
+```{r preparations}
 ts_var <- ch_2015_0193$ts
 ts_var_len <- length(ts_var)
-knots <- linspace(ts_var[1], ts_var[ts_var_len-1], 90*3) #for one year, knot every 6 hours
 
+consistent_variables <- c('ImageMeanValue','SunMeanIntensity','SunVarIntensity','Total_Nubmers_of_CH','Total_Area_CH','Relative_CH_Area','Total_CorrectSphereArea_CH','Relative_CH_CorrectSphereArea')
+```
+
+Generating GAM approximation for plotting trends.
+
+```{r gam}
 for(name in numeric_vars) {
-  #cat(name)
+  smoother.formula <- as.formula(paste0(name," ~ ts"))
+  smoother <- train(smoother.formula,data=ch_2015_0193, method='gam')
+  ch_2015_0193[[paste0(name,'_gam')]] <- predict(smoother,ch_2015_0193)
+}
+```
+
+## Noisey varaibles
+
+We consider the following variables as too noisy, we will not use them as features for now.
+
+```{r noisy}
+noisy_vars <- numeric_vars[!(numeric_vars %in% consistent_variables)]
+
+for(name in noisy_vars) {
+  print(
+    ggplot(ch_2015_0193, aes_string('ts', name)) +
+      geom_point() +
+      geom_smooth() + 
+      theme()
+  )
+}
+```
+
+## Consistent variables
+
+We transform consistent varaibles to reduce noise by applying these steps subsecuently:
+
+  * Removing spikes
+  * Approximating with splines
+
+
+### Removing spikes
+
+Assuming that they are caused by inconsistency of computer vision analysis of sun photo.
+
+```{r despike}
+
+for(name in consistent_variables) {
   variable <- ch_2015_0193[[name]]
-  len <- length(variable)
-  ppcub <- ppfit(ts_var, ch_2015_0193[[name]], knots, method = "cubic")
-  var_approximated <- ppval(ppcub, ts_var)
-  plot(ts_var,ch_2015_0193[[name]], xlab = 'time',ylab=name,pch=20,cex=.9)
-  lines(ts_var, var_approximated, col="red",lwd = 2)
-  #print('done')
+  ch_2015_0193[[paste0(name,'_f')]] <- despike(variable, reference="median",replace="reference")
+}
+```
+
+### Approximating with splines 
+
+```{r splines}
+knots <- linspace(ts_var[1], ts_var[ts_var_len-1], (ts_var[ts_var_len-1] - ts_var[1])/6) # knot every 6 hours
+for(name in consistent_variables) {
+  variable <- ch_2015_0193[[paste0(name,'_f')]]
+  ppcub <- ppfit(ts_var, variable, knots, method = "cubic")
+  ch_2015_0193[[paste0(name,'_fs')]] <- ppval(ppcub, ts_var)
+}
+```
+
+
+The resulting variables are following
+
+```{r variation in time}
+
+for(name in consistent_variables) {
+  plot(ts_var, ch_2015_0193[[paste0(name,'_gam')]], col="red",lwd = 2, xlab = 'time',ylab=name) #gam
+  points(ts_var,ch_2015_0193[[name]],pch=20,cex=.9,col='grey') #observations
+  points(ts_var, ch_2015_0193[[paste0(name,'_f')]], col="black",pch=20,cex=.9) #despike smooth
+  lines(ts_var, ch_2015_0193[[paste0(name,'_fs')]], col="blue",lwd = 1) #despike median
+  legend("topright",col=c('red','grey','black','blue'),legend=c('trend','raw','filtered','smoothed'))
 }
 ```
 
