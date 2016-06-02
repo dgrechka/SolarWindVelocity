@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(cache = TRUE)
+#knitr::opts_chunk$set(cache = TRUE)
 ```
 # Part 1: Data clean up and transforms
 
@@ -127,29 +127,31 @@ ts_var_len <- length(ts_var)
 consistent_variables <- c('ImageMeanValue','SunMeanIntensity','SunVarIntensity','Total_Nubmers_of_CH','Total_Area_CH','Relative_CH_Area','Total_CorrectSphereArea_CH','Relative_CH_CorrectSphereArea')
 ```
 
-Generating GAM approximation for plotting trends.
-
-```{r gam}
-for(name in numeric_vars) {
-  smoother.formula <- as.formula(paste0(name," ~ ts"))
-  smoother <- train(smoother.formula,data=ch_2015_0193, method='gam')
-  ch_2015_0193[[paste0(name,'_gam')]] <- predict(smoother,ch_2015_0193)
-}
-```
-
 ## Noisey varaibles
 
 We consider the following variables as too noisy, we will not use them as features for now.
 
 ```{r noisy}
 noisy_vars <- numeric_vars[!(numeric_vars %in% consistent_variables)]
+```
 
+Generating GAM approximation for plotting trends.
+
+```{r gam}
+for(name in noisy_vars) {
+  smoother.formula <- as.formula(paste0(name," ~ ts"))
+  #smoother <- train(smoother.formula,data=ch_2015_0193, method='gam')
+  #ch_2015_0193[[paste0(name,'_gam')]] <- predict(smoother,ch_2015_0193)
+}
+```
+
+
+```{r noisy_plots}
 for(name in noisy_vars) {
   print(
     ggplot(ch_2015_0193, aes_string('ts', name)) +
-      geom_point() +
-      geom_smooth() + 
-      theme()
+      geom_point(shape=1) 
+      #geom_line(aes_string('ts',paste0(name,'_gam')),col='red')
   )
 }
 ```
@@ -166,11 +168,14 @@ We transform consistent varaibles to reduce noise by applying these steps subsec
 
 Assuming that they are caused by inconsistency of computer vision analysis of sun photo.
 
-```{r despike}
+```{r runmed}
 
 for(name in consistent_variables) {
   variable <- ch_2015_0193[[name]]
-  ch_2015_0193[[paste0(name,'_f')]] <- despike(variable, reference="median",replace="reference")
+  variable <- runmed(variable, k=17)
+  variable <- runmed(variable, k=11)
+  variable <- runmed(variable, k=5)
+  ch_2015_0193[[paste0(name,'_m')]] <- variable
 }
 ```
 
@@ -178,10 +183,10 @@ for(name in consistent_variables) {
 
 ```{r splines}
 knots <- linspace(ts_var[1], ts_var[ts_var_len-1], (ts_var[ts_var_len-1] - ts_var[1])/6) # knot every 6 hours
-for(name in consistent_variables) {
-  variable <- ch_2015_0193[[paste0(name,'_f')]]
-  ppcub <- ppfit(ts_var, variable, knots, method = "cubic")
-  ch_2015_0193[[paste0(name,'_fs')]] <- ppval(ppcub, ts_var)
+for(name in consistent_variables) { 
+  variable <- ch_2015_0193[[paste0(name,'_m')]]  
+  #ppcub <- ppfit(ts_var, variable, knots, method = "cubic")
+  #ch_2015_0193[[paste0(name,'_ms')]] <- ppval(ppcub, ts_var)
 }
 ```
 
@@ -191,11 +196,12 @@ The resulting variables are following
 ```{r variation in time}
 
 for(name in consistent_variables) {
-  plot(ts_var, ch_2015_0193[[paste0(name,'_gam')]], col="red",lwd = 2, xlab = 'time',ylab=name) #gam
-  points(ts_var,ch_2015_0193[[name]],pch=20,cex=.9,col='grey') #observations
-  points(ts_var, ch_2015_0193[[paste0(name,'_f')]], col="black",pch=20,cex=.9) #despike smooth
-  lines(ts_var, ch_2015_0193[[paste0(name,'_fs')]], col="blue",lwd = 1) #despike median
-  legend("topright",col=c('red','grey','black','blue'),legend=c('trend','raw','filtered','smoothed'))
+  print(
+    ggplot(ch_2015_0193) +
+      geom_point(aes_string('ts',name),shape=1)+
+      #geom_point(aes_string('ts',paste0(name,'_m')),shape=1)
+      geom_line(aes_string('ts',paste0(name,'_m')),col='red',lwd=1) 
+  ) 
 }
 ```
 
