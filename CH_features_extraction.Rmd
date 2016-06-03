@@ -2,7 +2,9 @@
 title: "Coronal Holes data features extraction"
 author: "Dmitry A. Grechka"
 date: "May 27, 2016"
-output: html_document
+output:
+  html_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(caret)
 library(oce)
 library(pracma)
+library(corrplot)
 library(ggplot2)
 ```
 
@@ -150,8 +153,7 @@ for(name in noisy_vars) {
 for(name in noisy_vars) {
   print(
     ggplot(ch_2015_0193, aes_string('ts', name)) +
-      geom_point(shape=1) 
-      #geom_line(aes_string('ts',paste0(name,'_gam')),col='red')
+      geom_point(shape=1)
   )
 }
 ```
@@ -172,9 +174,7 @@ Assuming that they are caused by inconsistency of computer vision analysis of su
 
 for(name in consistent_variables) {
   variable <- ch_2015_0193[[name]]
-  variable <- runmed(variable, k=17)
-  variable <- runmed(variable, k=11)
-  variable <- runmed(variable, k=5)
+  variable <- runmed(variable, k=25)
   ch_2015_0193[[paste0(name,'_m')]] <- variable
 }
 ```
@@ -185,8 +185,6 @@ for(name in consistent_variables) {
 knots <- linspace(ts_var[1], ts_var[ts_var_len-1], (ts_var[ts_var_len-1] - ts_var[1])/6) # knot every 6 hours
 for(name in consistent_variables) { 
   variable <- ch_2015_0193[[paste0(name,'_m')]]  
-  #ppcub <- ppfit(ts_var, variable, knots, method = "cubic")
-  #ch_2015_0193[[paste0(name,'_ms')]] <- ppval(ppcub, ts_var)
 }
 ```
 
@@ -199,10 +197,19 @@ for(name in consistent_variables) {
   print(
     ggplot(ch_2015_0193) +
       geom_point(aes_string('ts',name),shape=1)+
-      #geom_point(aes_string('ts',paste0(name,'_m')),shape=1)
-      geom_line(aes_string('ts',paste0(name,'_m')),col='red',lwd=1) 
+      geom_line(aes_string('ts',paste0(name,'_m')),col='red',lwd=1)
   ) 
 }
+```
+
+#Consistent variables correlations
+
+```{r correlations2}
+
+consistent_variables_approx <- as.character(sapply(consistent_variables, function(x) {return(paste0(x,'_m'))}))
+
+corM <- cor(ch_2015_0193[,names(ch_2015_0193) %in% consistent_variables_approx],use = 'complete.obs')
+corrplot(corM,method = 'pie',order = 'hclust')
 ```
 
 # Acknowledgments
