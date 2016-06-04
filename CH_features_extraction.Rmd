@@ -11,9 +11,46 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 #knitr::opts_chunk$set(cache = TRUE)
 ```
-# Part 1: Data clean up and transforms
 
-# Libraries used
+I am going to perform data clean up and feature extraction for later wind speed model fitting.
+The major predictor of the solar wind is considered to be coronal holes (e.g. see <https://www.cfa.harvard.edu/~scranmer/Preprints/cranmer_y10pre.pdf>)
+
+# Available data sets
+
+I've got two CSV datasets to be used as training data for the modelling.
+They contain quantitive features extracted from the Sun images using computer vision algorithms.
+
+The files are following:
+
+  * ch_2015_0193.dsv - green spectrum portion originated features
+  * ch_2015_0211.dsv - red spectrum portion originated features
+  
+There are blue spectrum (171) images, but there are no extracted features from them.
+
+First, we will analyse the ch_2015_0193.dsv
+
+```{r data load}
+ch_2015_0193 <- read.csv('SampleData/ch_2015_0193.dsv',
+                         sep = '\t',
+                         dec = ',',
+                        colClasses=c("dt_record"="character")
+                         )
+```
+
+We need to parse time field to numeric axis. I will use the hours offset from the first measurement.
+
+```{r time_parsing}
+base_ts_sec <- as.numeric(strptime("2015-01-01T00:00:00","%Y-%m-%dT%H:%M:%S",tz='UTC'))
+
+ch_2015_0193$dt_record <- strptime(ch_2015_0193$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ch_2015_0193$ts_sec <- as.numeric(ch_2015_0193$dt_record)
+ch_2015_0193$ts <- (ch_2015_0193$ts_sec - base_ts_sec)/3600;#hours
+
+```
+
+# Data exploration
+
+We will use the following libraries during the analysis
 
 ```{r dependencies,message=FALSE}
 library(caret)
@@ -23,86 +60,49 @@ library(corrplot)
 library(ggplot2)
 ```
 
-# Data sets
+## Overview
 
-There are two files of sun observations for 2015 year
-
-  * ch_2015_0193.dsv - green spectrum portion originated features
-  * ch_2015_0211.dsv - red spectrum portion originated features
-  
-There are blue spectrum (171) images, but there are no extracted features from them
-
-Working with ch_2015_0193.dsv fist
-
-```{r data load}
-ch_2015_0193 <- read.csv('SampleData/ch_2015_0193.dsv',
-                         sep = '\t',
-                         dec = ',',
-                        colClasses=c("dt_record"="character")
-                         )
-
-ch_2015_0193$dt_record <- strptime(ch_2015_0193$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
-ch_2015_0193$ts_sec <- as.numeric(ch_2015_0193$dt_record)
-ch_2015_0193$ts <- (ch_2015_0193$ts_sec - ch_2015_0193$ts_sec[1])/3600;#hours
-
-```
-
-# Data overview
+We have total of **`r ncol(ch_2015_0193)-3`** possible predictors.
 
 ```{r data_overview}
 str(ch_2015_0193)
 ```
 
-# Data cleanup
 
-There are variables that vary poorly
+## Data cleanup
+
+### Low variable features
+We will exclude the variables that vary poorly.
 
 ```{r near_zero_vars}
 nzv_stats <- nearZeroVar(ch_2015_0193,saveMetrics = T)
+```
+These varaibles do not vary:
+```{r near_zero_vars2}
 nzv_stats[nzv_stats$nzv,]
-
-nzv <- nearZeroVar(ch_2015_0193,saveMetrics = F)
-ch_2015_0193 <- ch_2015_0193[,index2vec(nzv,vars=ncol(ch_2015_0193)) != 1]
-
-str(ch_2015_0193)
 ```
 
-Also removing observations with missing values
+Leaving only varying variables for further analysis.
+```{r near_zero_vars3}
+nzv <- nearZeroVar(ch_2015_0193,saveMetrics = F)
+ch_2015_0193 <- ch_2015_0193[,index2vec(nzv,vars=ncol(ch_2015_0193)) != 1]
+```
+
+### Missing Values handling
+For this study we will simple omit the observations with missing values
+
+Befor omiting there were **`r nrow(ch_2015_0193)`** observations.
 
 ```{r missing values}
 ch_2015_0193 <- na.omit(ch_2015_0193)
 ```
 
-#Srinking
+Afer omiting there are **`r nrow(ch_2015_0193)`** observations left.
 
-For basic exloratory purpose we will investigate first 2 month of data
-
-```{r shrinking}
-ch_2015_0193 <- ch_2015_0193[1:2160,]
-```
-
-#Transforms
-
-##Log transforms
-
-Replacing some variables with log-transformed variants to remove skewness.
-
-```{r transforms}
-varsToLogBames <- c('CHArea','CHMaxIntensity','CHVarIntensity','CHPerimeter','CorrectAlongLat','CorrectAlongLon','RightSideCHMaxInt','AboveCHMaxInt','BelowCHMaxInt','RightSideCHMeanInt','BelowCHMeanInt')
-for(name in varsToLogBames) {
-  par(mfrow=c(1,2)) 
-  ch_2015_0193[[paste0('log_',name)]] <- log(ch_2015_0193[[name]])
-  plot(density(ch_2015_0193[[name]],na.rm=T),main ='Before',ylab=paste('Density of ',name))
-  plot(density(ch_2015_0193[[paste0('log_',name)]],na.rm=T),main ='After',ylab=paste0('Density of log_',name))
-}
-
-ch_2015_0193 <- ch_2015_0193[,!(names(ch_2015_0193) %in% varsToLogBames)]
-```
-
-#Correlations
+## Exploring the correlations
 
 ```{r correlations}
-numeric_vars <- colnames(ch_2015_0193[,!(names(ch_2015_0193) %in% c('fitsname','dt_record','ts'))]) # omitting time
+numeric_vars <- colnames(ch_2015_0193[,!(names(ch_2015_0193) %in% c('fitsname','dt_record','ts'))]) # omitting time axis and origin filenames
 
 corM <- cor(ch_2015_0193[,names(ch_2015_0193) %in% numeric_vars],use = 'complete.obs')
 varMcol<- colorRampPalette(c("red", "white", "blue"))(20)
@@ -110,55 +110,73 @@ heatmap(x = corM, col = varMcol, symm = TRUE)
 #corrplot(corM,method = 'pie',order = 'hclust')
 ```
 
-#Densities
+
+## Exploring value densities
 
 ```{r densities plots}
-
+par(mfrow=c(1,2))
 for(name in numeric_vars) {
   plot(density(ch_2015_0193[[name]],na.rm=T),main = paste('Density of',name))
 }
 ```
 
-#Variation in time
+## Data transforms
 
-some of the varaibles are consistent in time while other contain lot of noise.
+### Log transforms
 
-```{r preparations}
-ts_var <- ch_2015_0193$ts
-ts_var_len <- length(ts_var)
+Some of the variables are highly skewed. We will log-transform these varaibles.
 
-consistent_variables <- c('ImageMeanValue','SunMeanIntensity','SunVarIntensity','Total_Nubmers_of_CH','Total_Area_CH','Relative_CH_Area','Total_CorrectSphereArea_CH','Relative_CH_CorrectSphereArea')
+```{r transforms}
+varsToLogNames <- c('CHArea','CHMaxIntensity','CHVarIntensity','CHPerimeter','CorrectAlongLat','CorrectAlongLon','RightSideCHMaxInt','AboveCHMaxInt','BelowCHMaxInt','RightSideCHMeanInt','BelowCHMeanInt')
+for(name in varsToLogNames) {
+  par(mfrow=c(1,2)) 
+  ch_2015_0193[[paste0('log_',name)]] <- log(ch_2015_0193[[name]])
+  numeric_vars <- c(numeric_vars,paste0('log_',name))
+  plot(density(ch_2015_0193[[name]],na.rm=T),main ='Before',ylab=paste('Density of ',name))
+  plot(density(ch_2015_0193[[paste0('log_',name)]],na.rm=T),main ='After',ylab=paste0('Density of log_',name))
+}
+
+ch_2015_0193 <- ch_2015_0193[,!(names(ch_2015_0193) %in% varsToLogNames)]
+numeric_vars <- numeric_vars[!(numeric_vars %in% varsToLogNames)]
 ```
 
-## Noisey varaibles
+## Exploring timeseries
+
+### Subsetting the training dataset for visual exploration
+
+For basic visual timeseries exlorations we will investigate first 2 month of data
+
+```{r shrinking}
+exploratoryOffsetTreshold = 1440 #hours
+
+ch_2015_0193_short <- ch_2015_0193[ch_2015_0193$ts <= exploratoryOffsetTreshold,]
+```
+
+### Noisey varaibles
+
+Some of the varaibles are consistent in time while other contain lot of noise.
 
 We consider the following variables as too noisy, we will not use them as features for now.
 
-```{r noisy}
-noisy_vars <- numeric_vars[!(numeric_vars %in% consistent_variables)]
-```
-
-Generating GAM approximation for plotting trends.
-
-```{r gam}
-for(name in noisy_vars) {
-  smoother.formula <- as.formula(paste0(name," ~ ts"))
-  #smoother <- train(smoother.formula,data=ch_2015_0193, method='gam')
-  #ch_2015_0193[[paste0(name,'_gam')]] <- predict(smoother,ch_2015_0193)
-}
-```
-
-
 ```{r noisy_plots}
+ts_var <- ch_2015_0193_short$ts
+ts_var_len <- length(ch_2015_0193_short)
+
+consistent_variables <- c('ImageMeanValue','SunMeanIntensity','SunVarIntensity','Total_Nubmers_of_CH','Total_Area_CH','Relative_CH_Area','Total_CorrectSphereArea_CH','Relative_CH_CorrectSphereArea')
+
+noisy_vars <- numeric_vars[!(numeric_vars %in% consistent_variables)]
+
+par(mfrow=c(2,1)) 
+
 for(name in noisy_vars) {
   print(
-    ggplot(ch_2015_0193, aes_string('ts', name)) +
+    ggplot(ch_2015_0193_short, aes_string('ts', name)) +
       geom_point(shape=1)
   )
 }
 ```
 
-## Consistent variables
+### Consistent variables
 
 We transform consistent varaibles to reduce noise by applying these steps subsecuently:
 
@@ -173,44 +191,92 @@ Assuming that they are caused by inconsistency of computer vision analysis of su
 ```{r runmed}
 
 for(name in consistent_variables) {
-  variable <- ch_2015_0193[[name]]
+  variable <- ch_2015_0193_short[[name]]
   variable <- runmed(variable, k=25)
-  ch_2015_0193[[paste0(name,'_m')]] <- variable
+  ch_2015_0193_short[[paste0(name,'_m')]] <- variable
 }
 ```
 
-### Approximating with splines 
-
-```{r splines}
-knots <- linspace(ts_var[1], ts_var[ts_var_len-1], (ts_var[ts_var_len-1] - ts_var[1])/6) # knot every 6 hours
-for(name in consistent_variables) { 
-  variable <- ch_2015_0193[[paste0(name,'_m')]]  
-}
-```
-
-
-The resulting variables are following
-
-```{r variation in time}
-
-for(name in consistent_variables) {
-  print(
-    ggplot(ch_2015_0193) +
-      geom_point(aes_string('ts',name),shape=1)+
-      geom_line(aes_string('ts',paste0(name,'_m')),col='red',lwd=1)
-  ) 
-}
-```
-
-#Consistent variables correlations
+##Consistent variables correlations
 
 ```{r correlations2}
 
 consistent_variables_approx <- as.character(sapply(consistent_variables, function(x) {return(paste0(x,'_m'))}))
 
-corM <- cor(ch_2015_0193[,names(ch_2015_0193) %in% consistent_variables_approx],use = 'complete.obs')
+corM <- cor(ch_2015_0193_short[,names(ch_2015_0193_short) %in% consistent_variables_approx],use = 'complete.obs')
 corrplot(corM,method = 'pie',order = 'hclust')
 ```
+
+As *Total_Area_CH_m* is fully correlated to *Relative_CH_Area_m* and *Total_CorrectShpereArea_CH_m* is fully correlated to *Relative_CH_CorrectSphereArea_m* we will leave only *Relative* varaibles.
+
+```{r relative_consistent}
+consistent_variables <- consistent_variables[!(consistent_variables %in% c('Total_Area_CH','Total_CorrectSphereArea_CH'))]
+```
+
+Finnaly we have **`r length(consistent_variables)`** predictors that can be used for modell fitting.
+(Time series are visualised later)
+
+# The same transformations with another spectrum data
+
+```{r 211_processing}
+chPreprocess <- function (data) {
+  data2 <- data
+  #creating time axis
+  data2$dt_record <- strptime(data2$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+  data2$ts_sec <- as.numeric(data2$dt_record)
+  data2$ts <- (data2$ts_sec -base_ts_sec)/3600;#hours sine basetime
+  data2 <- data2[,names(data2) %in% c('ts',consistent_variables)]
+  #filtering out MVs
+  data2 <- na.omit(data2)
+  
+  #appling unning median to approximate and remove spikes
+  result <- data.frame(ts=data2$ts)
+  for(name in consistent_variables) {
+    variable <- data2[[name]]
+    result[[name]] <- variable
+    variable_m <- runmed(variable, k=25)
+    result[[paste0(name,'_m')]] <- variable_m
+  }
+  return (result)
+}
+
+ch_2015_0211 <- read.csv('SampleData/ch_2015_0211.dsv',
+                         sep = '\t',
+                         dec = ',',
+                        colClasses=c("dt_record"="character"))
+
+ch_2015_0211<- chPreprocess(ch_2015_0211)
+
+ch_2015_0211_short <- ch_2015_0211[ch_2015_0211$ts <= exploratoryOffsetTreshold,]
+                        
+
+
+```
+
+# exploring results
+The resulting variables are following
+
+```{r variation in time}
+
+color_scale <- c('col_193_apx'='red','col_211_apx'='green')
+color_scale_labels <- c('col_193_apx'='approximated (193)','col_211_apx'='approximated (211)')
+shape_scale <- c('shape_193_raw'=1,'shape_211_raw'=3)
+shape_scale_labels <- c('shape_193_raw'='raw data (193)','shape_211_raw'='raw data (211)')
+
+for(name in consistent_variables) {
+  print(
+    ggplot(ch_2015_0193_short) +
+       scale_colour_manual(values=color_scale,labels=color_scale_labels)+ 
+       scale_shape_manual(values=shape_scale,labels=shape_scale_labels)+
+      geom_point(aes_string('ts',name,shape='"shape_193_raw"'))+
+      geom_point(data=ch_2015_0211_short,aes_string('ts',name,shape='"shape_211_raw"'))+
+      geom_line(aes_string('ts',paste0(name,'_m'),colour='"col_193_apx"'),lwd=1)+
+      geom_line(data=ch_2015_0211_short,aes_string('ts',paste0(name,'_m'),colour='"col_211_apx"'),lwd=0.5)
+       
+  )
+}
+```
+
 
 # Acknowledgments
 
