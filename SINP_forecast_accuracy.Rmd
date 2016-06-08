@@ -1,0 +1,174 @@
+---
+title: "Assessing SINP solar wind model accuracy"
+author: "Dmitry A. Grechka"
+date: '8 June 2016'
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Intro
+
+We need to define error measure for models comparison.
+We will compare "out-of-sample" error of MSU SINP model, Wind Pulses simulator and machine learning regression model.
+As we predict quantitative value of solar wind velocity, the good error measure could be RMSE.
+We will also calculate R^2^ for each of the predictions to analyse how much variance is described by a model.
+
+#Loading predictions by SINP
+
+(see <https://github.com/dgrechka/SolarWindVelocity/tree/master/SampleData> for data files)
+
+```{r data load}
+swf_2014_0193 <- read.csv('SampleData/sw_sinp_forecast_2014_0193.dsv',
+                         sep = '\t',
+                         dec = '.',
+                        colClasses=c("dt_record"="character","dt_sw"="character")
+                         )
+
+swf_2014_0211 <- read.csv('SampleData/sw_sinp_forecast_2014_0211.dsv',
+                         sep = '\t',
+                         dec = '.',
+                        colClasses=c("dt_record"="character","dt_sw"="character")
+                         )
+
+head(swf_2014_0211)
+
+sw_2014 <- read.csv('SampleData/ace_swepam_2014.dsv',
+                         sep = '\t',
+                         dec = '.',
+                        colClasses=c("dt_record"="character")
+                         )
+
+base_ts_sec <- as.numeric(strptime("2014-01-01T00:00:00","%Y-%m-%dT%H:%M:%S",tz='UTC'))
+
+dt_sw <- strptime(swf_2014_0193$dt_sw,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ts_sec <- as.numeric(dt_sw)
+swf_2014_0193$ts <- (ts_sec - base_ts_sec)/3600;#hours
+swf_2014_0193 <- swf_2014_0193[,names(swf_2014_0193) %in% c('ts','ForecastSWspeed')]
+
+dt_sw <- strptime(swf_2014_0211$dt_sw,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ts_sec <- as.numeric(dt_sw)
+swf_2014_0211$ts <- (ts_sec - base_ts_sec)/3600;#hours
+swf_2014_0211 <- swf_2014_0211[,names(swf_2014_0211) %in% c('ts','ForecastSWspeed')]
+
+dt_record <- strptime(sw_2014$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ts_sec <- as.numeric(dt_record)
+sw_2014$ts <- (ts_sec - base_ts_sec)/3600;#hours
+
+sw_2014 <- sw_2014[,names(sw_2014) != 'dt_record']
+
+```
+
+```{r summary}
+summary(swf_2014_0193)
+summary(swf_2014_0211)
+
+```
+
+Our testing data set will be days 300 - 360 of year 2014.
+We will evaluate prediction error rates for this interval.
+
+```{r test region}
+
+start_time <- 24*300
+top_time <- 24*(360)
+
+sw_2014_5w <- sw_2014[(sw_2014$ts >= start_time) & (sw_2014$ts <= top_time),]
+swf_2014_193_5w <- swf_2014_0193[(swf_2014_0193$ts >= start_time) & (swf_2014_0193$ts <= top_time),]
+swf_2014_211_5w <- swf_2014_0211[(swf_2014_0211$ts >= start_time) & (swf_2014_0211$ts <= top_time),]
+```
+
+SINP predictions contain lots of predicted values equal to 300. Their presence produce significant oscillations between value of 300 and other higher values (see figure below). Such oscillations can't happen in real life. The simplest way to eliminate these oscillations is to filter out predictions equal to 300. These points with value 300 will not be accounted during interpolation of predictions.
+
+```{r filtering}
+#filtering strange cont values od 300
+swf_2014_193_f <- swf_2014_0193[swf_2014_0193$ForecastSWspeed>300,]
+swf_2014_211_f <- swf_2014_0211[swf_2014_0211$ForecastSWspeed>300,]
+
+```
+
+```{r approximation}
+app_193_f <- approxfun(swf_2014_193_f$ts, y = swf_2014_193_f$ForecastSWspeed, method = "linear")
+app_211_f <- approxfun(swf_2014_211_f$ts, y = swf_2014_211_f$ForecastSWspeed, method = "linear")
+
+app_f <- function(t) {
+        return((app_193_f(t)+app_211_f(t))*0.5)
+}
+
+x <- seq(from=start_time,to=top_time,by=1)
+
+app_193 <- app_193_f(x)
+app_211 <- app_211_f(x)
+app_avg <- app_f(x)
+
+app_df <- data.frame(ts=x,y193=app_193,y211=app_211,y_avg = app_avg)
+```
+
+#Plotting the predicions and observations
+
+```{r plotting}
+library(ggplot2)
+
+
+shape_scale <- c(shape1=1,shape2=19)
+shape_scale_labels <- c(shape1='Raw observations',shape2='SINP Forecast')
+colour_scale <- c(col1='red',col2='green',col3='blue')
+colour_scale_labels <- c(col1='SINP forecast (211 nm)',col2='SINP forecast (193 nm)',col3='averaged forecast')
+
+p <- ggplot(data=sw_2014_5w,aes(x=ts)) +
+        theme_bw() +
+        geom_point(aes(y=velocity, shape="shape1"),col='darkgrey') +
+        geom_point(aes(y=ForecastSWspeed,col='col1',shape='shape2'),data=swf_2014_211_5w) +
+        geom_point(aes(y=ForecastSWspeed,col='col2',shape='shape2'),data=swf_2014_193_5w) +
+        geom_line(aes(y=y193,col='col2'),data=app_df)+
+        geom_line(aes(y=y211,col='col1'),data=app_df)+
+        geom_line(aes(y=y_avg,col='col3'),data=app_df,lwd=1)+
+        scale_shape_manual(name="",values=shape_scale,labels=shape_scale_labels) +
+        scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels) +
+        xlab("Time (hours since 2014-01-01T00:00:00)") +
+        ylab("Solar Wind Velocity (km s-1)") +
+        ggtitle("300-360 days of 2014 year")
+
+print(p)
+```
+
+#Evaluating RMSE and R^2^
+
+```{r RMSE}
+acc.sinp <- 0.0
+acc.null <- 0.0
+counter <- 0.0
+
+global.mean <- mean(sw_2014$velocity,na.rm = T)
+
+for(i in 1:length(sw_2014_5w$ts)) {
+        ref.v <- sw_2014_5w$velocity[i]
+        if(is.na(ref.v)) { #skipping observations with Velocity Missing Values
+                next();
+        }
+        diff.sinp <- app_f(sw_2014_5w$ts[i]) - ref.v
+        diff.null <- global.mean - ref.v
+        acc.sinp <- acc.sinp+ diff.sinp*diff.sinp
+        acc.null <- acc.null+ diff.null*diff.null
+        counter <- counter +1
+}
+rmse.sinp <- sqrt(acc.sinp/counter)
+rmse.null <- sqrt(acc.null/counter)
+r_squared <- 1 - acc.sinp/acc.null
+```
+
+
+RMSE of SINP model is **`r rmse.sinp`**.
+
+RMSE of *null* model is **`r rmse.null`**.
+
+R^2^ of SINP model is **`r r_squared`**.
+
+Looks like the idea of creating alternative model to the current SINP model can be promising.
+
+
+This is a part of study described at <http://grechka.family/dmitry/blog/2016/06/solar-wind-prediction/>
