@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #Intro
 
 We have per minute sampling of solar wind density, temperature and velocity recorded by EPAM <http://sd-www.jhuapl.edu/ACE/EPAM/> instrument of Advanced Composition Explorer (ACE) <http://sd-www.jhuapl.edu/ACE/> spacecraft.
+(see <https://github.com/dgrechka/SolarWindVelocity/tree/master/SampleData> for data files)
 
 I want to aggregate the data hourly. For each hour I want to get separate "trend"" value and noise level for each of three data variables (density, temperature, velocity). Thus I will get 
 
@@ -64,7 +65,7 @@ sw_2015$velocity.trend <- runmed(sw_2015$velocity,k)
 sw_2015$density.trend <- runmed(sw_2015$density,k)
 ```
 
-Forming noise variables by substracting trend from original signal.
+Forming noise variables by subtracting trend from original signal.
 
 ```{r noise formation}
 sw_2015$temperature.noise <- sw_2015$temperature-sw_2015$temperature.trend
@@ -72,13 +73,13 @@ sw_2015$velocity.noise <- sw_2015$velocity-sw_2015$velocity.trend
 sw_2015$density.noise <- sw_2015$density-sw_2015$density.trend
 ```
 
-To perform per hour aggregation, I will add synthetic column containing the begining of the hour period.
+To perform per hour aggregation, I will add synthetic column containing the beginning of the hour period.
 
 ```{r group column}
 sw_2015$ts_h <- floor(sw_2015$ts)
 ```
 
-Now we can aggreagte values within each group.
+Now we can aggregate values within each group.
 
 ```{r aggregation}
 #trend is aggregated with mean
@@ -282,3 +283,5 @@ result <- data.frame(
 
 write.csv(file='ResultData/ACE_EPAM_SW_2014.csv',row.names = F,result)
 ```
+
+This is a part of study described at <http://grechka.family/dmitry/blog/2016/06/solar-wind-prediction/>
