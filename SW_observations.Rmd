@@ -1,0 +1,284 @@
+---
+title: "Solar Wind observation data clean up"
+author: "Dmitry A. Grechka"
+date: "June 8, 2016"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Intro
+
+We have per minute sampling of solar wind density, temperature and velocity recorded by EPAM <http://sd-www.jhuapl.edu/ACE/EPAM/> instrument of Advanced Composition Explorer (ACE) <http://sd-www.jhuapl.edu/ACE/> spacecraft.
+
+I want to aggregate the data hourly. For each hour I want to get separate "trend"" value and noise level for each of three data variables (density, temperature, velocity). Thus I will get 
+
+  * **density_mean**
+  * **density_noise_sd**
+  * **temperature_mean**
+  * **temperature_noise_sd**
+  * **velocity_mean**
+  * **velocity_noise_sd**
+  
+for every hour.
+
+# Data processing
+
+```{r data load}
+sw_2015 <- read.csv('SampleData/ace_swepam_2015.dsv',
+                         sep = '\t',
+                         dec = '.',
+                        colClasses=c("dt_record"="character")
+                         )
+```
+
+As a time axis we will use hours since 2015-01-01T00:00:00
+
+```{r time_parsing}
+base_ts_sec <- as.numeric(strptime("2015-01-01T00:00:00","%Y-%m-%dT%H:%M:%S",tz='UTC'))
+
+dt_record <- strptime(sw_2015$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ts_sec <- as.numeric(dt_record)
+sw_2015$ts <- (ts_sec - base_ts_sec)/3600;#hours
+
+sw_2015 <- sw_2015[,names(sw_2015) != 'dt_record']
+
+```
+
+```{r summary}
+head(sw_2015)
+summary(sw_2015)
+```
+
+We will form trend by running median over the data.
+
+```{r trend formation}
+k <- 21
+
+sw_2015$temperature.trend <- runmed(sw_2015$temperature,k)
+sw_2015$velocity.trend <- runmed(sw_2015$velocity,k)
+sw_2015$density.trend <- runmed(sw_2015$density,k)
+```
+
+Forming noise variables by substracting trend from original signal.
+
+```{r noise formation}
+sw_2015$temperature.noise <- sw_2015$temperature-sw_2015$temperature.trend
+sw_2015$velocity.noise <- sw_2015$velocity-sw_2015$velocity.trend
+sw_2015$density.noise <- sw_2015$density-sw_2015$density.trend
+```
+
+To perform per hour aggregation, I will add synthetic column containing the begining of the hour period.
+
+```{r group column}
+sw_2015$ts_h <- floor(sw_2015$ts)
+```
+
+Now we can aggreagte values within each group.
+
+```{r aggregation}
+#trend is aggregated with mean
+temperature.trend.1h <- aggregate(temperature.trend ~ ts_h,data = sw_2015,mean)
+velocity.trend.1h <- aggregate(velocity.trend ~ ts_h,data = sw_2015,mean)
+density.trend.1h <- aggregate(density.trend ~ ts_h,data = sw_2015,mean)
+
+#noise is aggregated with standard deviation (sd)
+sd.safe <- function(x) { return(sd(x,na.rm = T))}
+
+temperature.noise.1h <- aggregate(temperature.noise ~ ts_h,data = sw_2015,sd.safe)
+velocity.noise.1h <- aggregate(velocity.noise ~ ts_h,data = sw_2015,sd.safe)
+density.noise.1h <- aggregate(density.noise ~ ts_h,data = sw_2015,sd.safe)
+
+#time is aggregared with mean (to get "centre" of aggregation time interval)
+ts.1h <- aggregate(ts ~ ts_h,data = sw_2015,mean)
+```
+
+Merging (outer joining) aggregated values into single new data frame
+
+```{r merging}
+result <- merge(temperature.trend.1h,velocity.trend.1h, by = "ts_h", all = TRUE)
+result <- merge(result,density.trend.1h, by = "ts_h", all = TRUE)
+result <- merge(result,temperature.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,velocity.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,density.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,ts.1h, by = "ts_h", all = TRUE)
+
+#renaming columns
+result <- data.frame(
+  ts=result$ts,
+  density_mean=result$density.trend,
+  density_noise_sd=result$density.noise,
+  velocity_mean=result$velocity.trend,
+  velocity_noise_sd=result$velocity.noise,
+  temperature_mean=result$temperature.trend,
+  temperature_noise_sd=result$temperature.noise
+)
+
+head(result)
+summary(result)
+```
+
+#Visualizing the results
+
+Visualizing first week of data
+
+```{r visualize week}
+library(ggplot2)
+
+result_w <- result[result$ts<=168,]
+raw_w <- sw_2015[sw_2015$ts<=168,]
+
+result_m <- result[result$ts<=720,]
+raw_m <- sw_2015[sw_2015$ts<=720,]
+
+shape_scale <- c(shape1=1)
+shape_scale_labels <- c(shape1='Raw observations')
+fill_scale <- c(fill1='pink',fill2='darkturquoise',fill3='darkseagreen1')
+fill_scale_labels <- c(fill1='Mean +/- 1 sigma noise',fill2='Mean +/- 1 sigma noise',fill3='Mean +/- 1 sigma noise')
+colour_scale <- c(col1='red',col2='blue',col3='green')
+colour_scale_labels <- c(col1='Mean',col2='Mean',col3='Mean')
+
+#Velocity
+p <- ggplot(aes(x=ts),data=result_w) +
+  geom_point(aes(y=velocity, shape="shape1"),data=raw_w,col='darkgrey') +
+  geom_ribbon(aes(ymin=velocity_mean-velocity_noise_sd,ymax=velocity_mean+velocity_noise_sd,fill ='fill1')) +
+  geom_line(aes(y=velocity_mean,col='col1'),lwd=1) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Velocity (km s-1)") +
+  ggtitle("First Week of 2015 year") +
+  scale_shape_manual(name="",values=shape_scale,labels=shape_scale_labels) +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+
+#Density
+p <- ggplot(aes(x=ts),data=result_w) +
+  geom_point(aes(y=density, shape="shape1"),data=raw_w,col='darkgrey') +
+  geom_ribbon(aes(ymin=density_mean-density_noise_sd,ymax=density_mean+density_noise_sd,fill ='fill2')) +
+  geom_line(aes(y=density_mean,col='col2'),lwd=1) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Density (particles cm-3)") +
+  ggtitle("First Week of 2015 year") +
+  scale_shape_manual(name="",values=shape_scale,labels=shape_scale_labels) +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+
+#Temprature
+p <- ggplot(aes(x=ts),data=result_w) +
+  geom_point(aes(y=temperature, shape="shape1"),data=raw_w,col='darkgrey') +
+  geom_ribbon(aes(ymin=temperature_mean-temperature_noise_sd,ymax=temperature_mean+temperature_noise_sd,fill ='fill3')) +
+  geom_line(aes(y=temperature_mean,col='col3'),lwd=1) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Temperature (?)") +
+  ggtitle("First Week of 2015 year") +
+  scale_shape_manual(name="",values=shape_scale,labels=shape_scale_labels) +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+
+```
+
+```{r visualize month}
+
+result_m <- result[result$ts<=720,]
+
+#Velocity
+p <- ggplot(aes(x=ts),data=result_m) +
+  geom_ribbon(aes(ymin=velocity_mean-velocity_noise_sd,ymax=velocity_mean+velocity_noise_sd,fill ='fill1')) +
+  geom_line(aes(y=velocity_mean,col='col1'),lwd=0.5) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Velocity (km s-1)") +
+  ggtitle("First 30 days of 2015 year") +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+
+#Density
+p <- ggplot(aes(x=ts),data=result_m) +
+  geom_ribbon(aes(ymin=density_mean-density_noise_sd,ymax=density_mean+density_noise_sd,fill ='fill2')) +
+  geom_line(aes(y=density_mean,col='col2'),lwd=0.5) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Density (particles cm-3)") +
+  ggtitle("First 30 days of 2015 year") +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+
+#Temprature
+p <- ggplot(aes(x=ts),data=result_m) +
+  geom_ribbon(aes(ymin=temperature_mean-temperature_noise_sd,ymax=temperature_mean+temperature_noise_sd,fill ='fill3')) +
+  geom_line(aes(y=temperature_mean,col='col3'),lwd=0.5) +
+  theme_bw() +
+  xlab("Time (hours since 2015-01-01T00:00:00)") +
+  ylab("Solar Wind Temperature (?)") +
+  ggtitle("First 30 days of 2015 year") +
+  scale_fill_manual(name="",values=fill_scale,labels=fill_scale_labels) +
+  scale_colour_manual(name="",values=colour_scale,labels=colour_scale_labels)
+print(p)
+```
+
+# Saving results
+
+```{r outputting}
+write.csv(file='ResultData/ACE_EPAM_SW_2015.csv',row.names = F,result)
+```
+
+Processing 2014 year
+
+```{r year 2014}
+sw_2014 <- read.csv('SampleData/ace_swepam_2014.dsv',
+                         sep = '\t',
+                         dec = '.',
+                        colClasses=c("dt_record"="character")
+                         )
+
+dt_record <- strptime(sw_2014$dt_record,"%Y-%m-%dT%H:%M:%S",tz='UTC')
+ts_sec <- as.numeric(dt_record)
+sw_2014$ts <- (ts_sec - base_ts_sec)/3600;#hours
+sw_2014 <- sw_2014[,names(sw_2014) != 'dt_record']
+
+sw_2014$temperature.trend <- runmed(sw_2014$temperature,k)
+sw_2014$velocity.trend <- runmed(sw_2014$velocity,k)
+sw_2014$density.trend <- runmed(sw_2014$density,k)
+
+sw_2014$temperature.noise <- sw_2014$temperature-sw_2014$temperature.trend
+sw_2014$velocity.noise <- sw_2014$velocity-sw_2014$velocity.trend
+sw_2014$density.noise <- sw_2014$density-sw_2014$density.trend
+
+sw_2014$ts_h <- floor(sw_2014$ts)
+temperature.trend.1h <- aggregate(temperature.trend ~ ts_h,data = sw_2014,mean)
+velocity.trend.1h <- aggregate(velocity.trend ~ ts_h,data = sw_2014,mean)
+density.trend.1h <- aggregate(density.trend ~ ts_h,data = sw_2014,mean)
+temperature.noise.1h <- aggregate(temperature.noise ~ ts_h,data = sw_2014,sd.safe)
+velocity.noise.1h <- aggregate(velocity.noise ~ ts_h,data = sw_2014,sd.safe)
+density.noise.1h <- aggregate(density.noise ~ ts_h,data = sw_2014,sd.safe)
+ts.1h <- aggregate(ts ~ ts_h,data = sw_2014,mean)
+result <- merge(temperature.trend.1h,velocity.trend.1h, by = "ts_h", all = TRUE)
+result <- merge(result,density.trend.1h, by = "ts_h", all = TRUE)
+result <- merge(result,temperature.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,velocity.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,density.noise.1h, by = "ts_h", all = TRUE)
+result <- merge(result,ts.1h, by = "ts_h", all = TRUE)
+
+result <- data.frame(
+  ts=result$ts,
+  density_mean=result$density.trend,
+  density_noise_sd=result$density.noise,
+  velocity_mean=result$velocity.trend,
+  velocity_noise_sd=result$velocity.noise,
+  temperature_mean=result$temperature.trend,
+  temperature_noise_sd=result$temperature.noise
+)
+
+write.csv(file='ResultData/ACE_EPAM_SW_2014.csv',row.names = F,result)
+```
