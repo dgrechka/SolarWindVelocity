@@ -1,13 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "PulseEngineApp", "PulseEngineApp\PulseEngineApp.fsproj", "{4687B048-B69F-4C32-B801-002224A6A452}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SolarWindEngine", "SolarWindEngine\SolarWindEngine.fsproj", "{8C056CC0-3150-4E9D-A4C3-5EF8C95179DC}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SolarWindModelFitter", "SolarWindModelFitter\SolarWindModelFitter.fsproj", "{5EDCFE75-37BF-4C09-AA25-C938BECAE4E2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C0F0F4A5-C26E-4D13-82E0-43F7DAAADFCE}"
+	ProjectSection(SolutionItems) = preProject
+		..\MCMCFitting.md = ..\MCMCFitting.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
