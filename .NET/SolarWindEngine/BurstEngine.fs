@@ -45,21 +45,37 @@ let getBurstPosition burst time =
     let pos = burst.Velocity * float(time-burst.EmergenceTime)
     descretize(System.Math.Round(pos))
 
-let worldState wind time =
-    let rec fillState wind (state:WorldState) =
+let worldState wind time =    
+    let rec fillState wind (state:WorldState) =        
         match wind with
         |   burst::tail  ->
             let pos = getBurstPosition burst time
-            let burstsAtPos =
-                if Map.containsKey pos state then
-                    state.[pos]
-                else
-                    Set.empty
-            let burstAtPosAppended = Set.add burst burstsAtPos           
-            fillState tail (Map.add pos burstAtPosAppended state)
+            if pos < 0 then //optimizing. does not account bursts that are not yet emerged
+                fillState tail state
+            else
+                let burstsAtPos =
+                    if Map.containsKey pos state then
+                        state.[pos]
+                    else
+                        Set.empty
+                let burstAtPosAppended = Set.add burst burstsAtPos           
+                fillState tail (Map.add pos burstAtPosAppended state)
         |   []  ->
             state
     fillState wind Map.empty
+
+let locationState wind time location =
+    let rec fillState wind (state:Set<Burst>) =        
+        match wind with
+        |   burst::tail  ->
+            let pos = getBurstPosition burst time
+            if pos = location then //looking for particular location
+                fillState tail (Set.add burst state) //mixing in current burst                
+            else                                
+                fillState tail state //not interesting location, skipping
+        |   []  ->
+            state
+    fillState wind Set.empty
 
 let windAvg (bursts:Set<Burst>) =
         let folder acc burst =

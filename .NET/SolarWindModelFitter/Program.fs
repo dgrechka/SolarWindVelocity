@@ -103,10 +103,10 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 
     let current_lglk p =
         let t,v = p
-        let t = timeToTick t
-        let world_state = worldState wind t
-        let predAtEarth = windAtDistance world_state (int(round(D)))
-        let v_avg_Earth,d_avg_Earth = predAtEarth
+        let t = timeToTick t        
+        let burstsAtEarth = locationState wind t (int(round(D)))
+        let windAtEart = windAvg burstsAtEarth
+        let v_avg_Earth,d_avg_Earth = windAtEart
         let mu = (v_b*d_b+v_avg_Earth*d_avg_Earth)/(d_b+d_avg_Earth)
         if System.Double.IsNaN mu then
             log improbable
@@ -116,8 +116,10 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
             //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
             lglk        
     let res =
-        data |> Seq.map current_lglk
-             |> Seq.sum         
+        data |> Seq.toArray
+//             |> Array.Parallel.map current_lglk
+             |> Array.map current_lglk
+             |> Array.sum         
     if res>bestLglk then
         printfn "\nlglk improvement:%g\tVm:%g\tVp:%g\tDm:%g\tDp:%g\tVbg:%g\tDbg:%g\tSig:%g\tD:%g"
             res v_max v_p d_max d_p v_b d_b Sigma D
@@ -153,7 +155,7 @@ let main argv =
             ) obs
         else obs
 
-    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 ) ch_data
+    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 && t < 2140.0) ch_data
     let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 2140.0) obs
 
     printfn "Predictor values count %d" predictorsT.RowsCount
@@ -171,7 +173,7 @@ let main argv =
                             .Add("D_bg",[|0.5|],eps,1.0,isLog=true,delay=0)
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
                             .Add("Sigma",[| 71.4027|],eps, 500.0,isLog=true,delay=0)                            
-        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 5000, 1000,rng=rng)
+        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 10000, 5000,rng=rng)
     if doEstimate then
         let res = estimate predictorsT observationsT    
         Sampler.print res
