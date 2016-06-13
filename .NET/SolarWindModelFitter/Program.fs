@@ -101,9 +101,14 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
     
     let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT
 
+    let a = 1000.0 * 60.0 / 10.0**8.0
+    let velocityToModel v = v * a
+        
+
     let current_lglk p =
         let t,v = p
-        let t = timeToTick t        
+        let v =  velocityToModel v //velocity to model units (1.0 = 1.0x10^8m/min)
+        let t = timeToTick t //hours to model units (minutes)
         let burstsAtEarth = locationState wind t (int(round(D)))
         let windAtEart = windAvg burstsAtEarth
         let v_avg_Earth,d_avg_Earth = windAtEart
@@ -167,12 +172,12 @@ let main argv =
         let parameters = Parameters.Empty
                             .Add("V_max",[|0.8|],eps,1.0,isLog=true,delay=0)
                             .Add("V_p",[|0.5|],eps,1.0,isLog=true,delay=0)
-                            .Add("D_max",[|0.8|],eps,1.0,isLog=true,delay=0)
+                            .Add("D_max",[|0.8|],eps,1.0,isLog=false,delay=0)
                             .Add("D_p",[|0.5|],eps,1.0,isLog=true,delay=0)
-                            .Add("V_bg",[|300.0|],eps,500.0,isLog=true,delay=0)
-                            .Add("D_bg",[|0.5|],eps,1.0,isLog=true,delay=0)
+                            .Add("V_bg",[|0.1|],eps,0.5,isLog=true,delay=0)
+                            .Add("D_bg",[|0.5|],eps,1.0,isLog=false,delay=0)
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
-                            .Add("Sigma",[| 71.4027|],eps, 500.0,isLog=true,delay=0)                            
+                            .Add("Sigma",[|0.01|],eps, 0.5,isLog=true,delay=0)                            
         Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 10000, 5000,rng=rng)
     if doEstimate then
         let res = estimate predictorsT observationsT    
