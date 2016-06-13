@@ -231,6 +231,8 @@ print(p)
 # Saving results
 
 ```{r outputting}
+result <- na.omit(result)
+
 write.csv(file='ResultData/ACE_EPAM_SW_2015.csv',row.names = F,result)
 ```
 
@@ -280,6 +282,8 @@ result <- data.frame(
   temperature_mean=result$temperature.trend,
   temperature_noise_sd=result$temperature.noise
 )
+
+result <- na.omit(result)
 
 write.csv(file='ResultData/ACE_EPAM_SW_2014.csv',row.names = F,result)
 ```

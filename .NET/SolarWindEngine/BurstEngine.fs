@@ -60,23 +60,26 @@ let worldState wind time =
         |   []  ->
             state
     fillState wind Map.empty
-        
-let sampleVelocity wind time max_x =    
-    let state = worldState wind time
-    let meanVelocity (bursts:Set<Burst>) =
+
+let windAvg (bursts:Set<Burst>) =
         let folder acc burst =
             let acc_v,acc_d = acc
             let d = burst.Density
             acc_v+(burst.Velocity*d),acc_d+d
         let accumulated = Set.fold folder (0.0,0.0) bursts
         let acc_v,acc_d = accumulated
-        acc_v/acc_d
-    let initializer idx =        
-        if state.ContainsKey idx then
-            meanVelocity state.[idx]
-        else
-            0.0
-    Array.init max_x initializer
+        acc_v/acc_d,acc_d
+
+let windAtDistance (world_state:WorldState) d =
+    if world_state.ContainsKey d then
+        windAvg world_state.[d]
+    else
+        0.0,0.0
+        
+
+let sampleVelocity wind time max_x =    
+    let state = worldState wind time        
+    Array.init max_x (windAtDistance state) |> Array.map fst
 
 
 //outer list is time, inner list is space
