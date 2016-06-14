@@ -13,6 +13,10 @@ open MathNet.Numerics.LinearAlgebra
 let timeToTick t =
     int(round(t*60.0))
 
+let a = 1000.0 * 60.0 / 10.0**8.0
+let velocityToModel v = v * a
+let toKmPerS v = v / a
+
 let max_hole= 20.0
 let max_velocity = 1.0
 
@@ -35,15 +39,15 @@ let getWind (predictorsT: Table) v_max v_p d_max d_p =
             let b = v_max * v_p
             let velocity = k * area + b                    
             #if DEBUG
-            assert(k* max_hole + b = v_max)
-            assert(k*0.0 + b = v_max*v_p)
+            assert(abs(k* max_hole + b - v_max)<1e-14)
+            assert(abs(k*0.0 + b - v_max*v_p)<1e-14)
             #endif
             let k = d_max * (1.0 - d_p) / max_hole
             let b = d_max * d_p
             let density = k * area + b                    
             #if DEBUG
-            assert(k* max_hole + b = d_max)
-            assert(k*0.0 + b = d_max*d_p)
+            assert(abs(k* max_hole + b - d_max)<1e-14)
+            assert(abs(k*0.0 + b - d_max*d_p)<1e-14)
             #endif            
             let burst = {
                 EmergenceTime=emergence_tick;
@@ -52,31 +56,7 @@ let getWind (predictorsT: Table) v_max v_p d_max d_p =
             }
             Some(burst)
     Table.Map ["ts";"Relative_CH_CorrectSphereArea_j"] generatePulse predictorsT |> Seq.choose (fun b -> b)  |> List.ofSeq
-
-let expandWind wind = //interpolates the bursts linearly, so burst appear every tick
-    let interpolate b1 b2 =
-        let t1 = b1.EmergenceTime
-        let t2 = b2.EmergenceTime
-        let steps = t2-t1
-        assert(steps >= 1)        
-        let v_step = (b2.Velocity-b1.Velocity)/float(steps)
-        let d_step = (b2.Density-b1.Density)/float(steps)
-        [
-            for i=0 to steps do
-                yield {
-                    EmergenceTime=t1+i
-                    Velocity=b1.Velocity + v_step*float(i)
-                    Density=b1.Density + d_step*float(i)
-                }
-        ]
-    let rec expand expanded unexpanded =
-        match unexpanded with
-        |   h1::h2::tail ->
-            expand (List.append (interpolate h1 h2) expanded) tail
-        |   h1::[] -> h1::expanded
-        |   []  -> expanded
-    expand [] wind
-    
+  
 
 let mutable bestLglk = System.Double.NegativeInfinity
 
@@ -99,11 +79,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 
     let wind = getWind predictorsT v_max v_p d_max d_p |> expandWind    
     
-    let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT
-
-    let a = 1000.0 * 60.0 / 10.0**8.0
-    let velocityToModel v = v * a
-        
+    let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT    
 
     let current_lglk p =
         let t,v = p
@@ -137,7 +113,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 [<EntryPoint>]
 let main argv =     
     //config
-    let doEstimate = true
+    let doEstimate = false
     let thinnObs = false
     let seed : uint32 ref = ref 0u
     if argv.Length>0
@@ -154,7 +130,7 @@ let main argv =
     let mutable counter = 0
     let obs =
         if thinnObs then
-            Table.Filter ["t"]  (fun (dummy:float) ->            
+            Table.Filter ["ts"]  (fun (dummy:float) ->            
             counter <- counter+1
             counter%5=0            
             ) obs
@@ -176,6 +152,7 @@ let main argv =
                             .Add("D_p",[|0.5|],eps,1.0,isLog=true,delay=0)
                             .Add("V_bg",[|0.1|],eps,0.5,isLog=true,delay=0)
                             .Add("D_bg",[|0.5|],eps,1.0,isLog=false,delay=0)
+                            //.Add("D_bg",[|0.5|])
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
                             .Add("Sigma",[|0.01|],eps, 0.5,isLog=true,delay=0)                            
         Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 10000, 5000,rng=rng)
@@ -187,69 +164,72 @@ let main argv =
 //            |> Seq.mapi (fun i {values=sample} -> Column.Create(res.sampler.Parameters.GetName(i),sample))
 //            |> Table.OfColumns
 //        printfn "done"
-        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)
-
-
-    else
-        ()
+        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)        
+    else        
         //simulation    
-//        let V_b,V_1,V_2,S_0,S_1,S_2,P_w,Sigma,D = 350.0,40.06,27.8,0.18,2.78,1.04,3.76868e+06,70.7075,1.78556e+08
-//
-//        let (a,b,c) = get2ndPolyCoefs S_0 S_1 S_2 V_b V_1 V_2
-//
-//        let testWind = getWind predictorsT V_b S_0 a b c P_w
-//
-//        let time_start = 0.0
-//        let time_step = 0.2
-//        let time_stop = 500.0
-//        let space_step = 0.5e+6
-//        let space_start = 0.0 
-//        let space_end = 1.5e+8
-//
-//        let simulation = simulate testWind time_start time_stop time_step space_start space_end space_step
-//
-//        //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
-//        let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
-//        ds.IsAutocommitEnabled <- false
-//        let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
-//        let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
-//        let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
-//        let timeAxis = ds.AddVariable<float>("t",[|"t"|])
-//        let spaceAxis = ds.AddVariable<float>("x",[|"x"|])        
-//
-//        let timeObsAxis = ds.AddVariable<float>("obs_time",[|"t_obs"|])
-//        let obsAxis = ds.AddVariable<float>("obs",[|"t_obs"|])
-//        let predAxis = ds.AddVariable<float>("pred",[|"t_obs"|])
-//        let predMeanAxis = ds.AddVariable<float>("predMean",[|"t_obs"|])
-//
-//        let dummy =
-//            Table.MapToColumn "pred" ["t";"velocity"]  (fun (t:float) (v:float) ->
-//                let mu = V_b + WindAvgAForTime testWind t D
-//                let n = Statistics.Normal(mu,Sigma)
-//                let pred = Statistics.draw rng n
-//                timeObsAxis.Append([|t|]);
-//                obsAxis.Append([|v|]);
-//                predAxis.Append([|pred|]);
-//                predMeanAxis.Append([|mu|]);
-//                printfn "%f %f %f %f" t v pred mu
-//                pred
-//                ) observationsT
-//
-//        printfn "simulated for %d time moments" (dummy.RowsCount)
-//
-//        List.iteri (fun i sim_step_data ->
-//            let sample_vals,sample_speed,sample_max_speed = sim_step_data
-//            let sample_speed_km_s = List.map (fun a -> a + V_b) sample_speed
-//            let t = time_start+float(i)*time_step                            
-//            windVar.Append(List.toArray sample_vals,"t")
-//            windSpVar.Append(List.toArray sample_speed_km_s,"t")
-//            windSpMaxVar.Append(List.toArray sample_max_speed,"t")
-//            timeAxis.Append([|t|]);
-//            )
-//            simulation
-//        let spaceAxisData = Array.init (int((space_end-space_start)/space_step)) (fun i -> space_start+float(i)*space_step)
-//        spaceAxis.Append(spaceAxisData)
-//
-//        ds.Commit()        
+        let v_m = 0.550798
+        let v_p = 0.219125
+        let d_m = 0.883239
+        let d_p = 7.6e-49
+        let v_b = 0.269306
+        let d_b = 0.469225
+        let D = 1587.39
+        let Sigma = 0.0430126
+
+        let testWind = getWind predictorsT v_m v_p d_m d_p
+
+        let testWind = expandWind testWind
+
+        let time_start = timeToTick 150.0        
+        let time_stop = timeToTick 200.0        
+        let space_start = 1400
+        let space_end = 1450
+
+        let simulation = simulate testWind time_start time_stop space_start space_end
+
+        //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
+        let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
+        ds.IsAutocommitEnabled <- false
+        //let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
+        let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
+        //let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
+        let timeAxis = ds.AddVariable<int>("t",[|"t"|])
+        let spaceAxis = ds.AddVariable<int>("x",[|"x"|])        
+
+        let timeObsAxis = ds.AddVariable<int>("obs_time",[|"t_obs"|])
+        let obsAxis = ds.AddVariable<float>("obs",[|"t_obs"|])
+        let predAxis = ds.AddVariable<float>("pred",[|"t_obs"|])
+        let predMeanAxis = ds.AddVariable<float>("predMean",[|"t_obs"|])
+
+        let dummy =
+            Table.MapToColumn "pred" ["ts";"velocity_mean"]  (fun (t:float) (v:float) ->
+                let burstsAtEarth = locationState testWind (timeToTick t) (int(round(D)))
+                let windAtEart = windAvg burstsAtEarth
+                let v_avg_Earth,d_avg_Earth = windAtEart
+                let mu = (v_b*d_b+v_avg_Earth*d_avg_Earth)/(d_b+d_avg_Earth)
+                        
+                let n = Statistics.Normal(mu,Sigma)
+                let pred = Statistics.draw rng n
+                timeObsAxis.Append([|timeToTick t|]);
+                obsAxis.Append([|v|]);
+                predAxis.Append([|toKmPerS pred|]);
+                predMeanAxis.Append([|toKmPerS mu|]);
+                //printfn "%f %f %f %f" t v pred mu
+                pred
+                ) observationsT
+
+        printfn "simulated for %d time moments" (dummy.RowsCount)
+
+        List.iteri (fun i sample_speed ->
+            let t = time_start+i
+            let sample_speed_km_s = Array.map toKmPerS sample_speed
+            windSpVar.Append(sample_speed_km_s,"t")            
+            timeAxis.Append([|t|]);
+            )
+            simulation
+        let spaceAxisData = Array.init (space_end-space_start+1) (fun i -> space_start+i)
+        spaceAxis.Append(spaceAxisData)
+
+        ds.Commit()        
     
     0 // return an integer exit code

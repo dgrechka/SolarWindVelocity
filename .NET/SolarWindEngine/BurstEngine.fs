@@ -77,6 +77,30 @@ let locationState wind time location =
             state
     fillState wind Set.empty
 
+let expandWind wind = //interpolates the bursts linearly, so burst appear every tick
+    let interpolate b1 b2 = //returns reversed list
+        let t1 = b1.EmergenceTime
+        let t2 = b2.EmergenceTime
+        let steps = t2-t1
+        assert(steps >= 1)        
+        let v_step = (b2.Velocity-b1.Velocity)/float(steps)
+        let d_step = (b2.Density-b1.Density)/float(steps)
+        [
+            for i=1 to steps do
+                yield {
+                    EmergenceTime=t2-i
+                    Velocity=b2.Velocity - v_step*float(i)
+                    Density=b2.Density - d_step*float(i)
+                }
+        ]
+    let rec expand expanded unexpanded =
+        match unexpanded with
+        |   h1::h2::tail ->
+            expand (List.append (interpolate h1 h2) expanded) (h2::tail)
+        |   h1::[] -> h1::expanded
+        |   []  -> expanded
+    expand [] wind |> List.rev
+
 let windAvg (bursts:Set<Burst>) =
         let folder acc burst =
             let acc_v,acc_d = acc
@@ -95,7 +119,7 @@ let windAtDistance (world_state:WorldState) d =
 
 let sampleVelocity wind time max_x =    
     let state = worldState wind time        
-    Array.init max_x (windAtDistance state) |> Array.map fst
+    Array.init (max_x+1) (windAtDistance state) |> Array.map fst
 
 
 //outer list is time, inner list is space
@@ -104,5 +128,5 @@ let simulate wind start_t stop_t left_x right_x =
     Array.Parallel.init N ( fun i ->
         printf "."
         let t = start_t+i        
-        sampleVelocity wind t (right_x+1) |> Array.skip (left_x-1)
+        sampleVelocity wind t right_x |> Array.skip left_x
         ) |> List.ofArray

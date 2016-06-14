@@ -17,8 +17,10 @@ let loadPulses (csvFile:string) =
 let main argv = 
     Angara.Base.Init()
     
-    let testWind = loadPulses @"..\..\..\..\TestData\3pulses.csv"
+    let testWind = loadPulses @"..\..\..\..\TestData\6pulses.csv"
     
+    let testWind = expandWind testWind
+
     let space_start = 0
     let space_end = 120
     let time_end = 120
