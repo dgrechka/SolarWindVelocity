@@ -110,23 +110,32 @@ let windAvg (bursts:Set<Burst>) =
         let acc_v,acc_d = accumulated
         acc_v/acc_d,acc_d
 
-let windAtDistance (world_state:WorldState) d =
+let windAtDistance (world_state:WorldState) d =    
     if world_state.ContainsKey d then
         windAvg world_state.[d]
     else
         0.0,0.0
         
 
-let sampleVelocity wind time max_x =    
+let sampleVelocity wind time min_x max_x =    
     let state = worldState wind time        
-    Array.init (max_x+1) (windAtDistance state) |> Array.map fst
+    Array.init (max_x - min_x + 1) (fun i -> windAtDistance state (i+min_x)) |> Array.map fst
 
 
 //outer list is time, inner list is space
-let simulate wind start_t stop_t left_x right_x =
-    let N = stop_t - start_t + 1    
-    Array.Parallel.init N ( fun i ->
+let simulate wind start_t stop_t by_t left_x right_x =
+    let monitor = ref (new System.Object())
+    let mutable doneCounter = 0
+    let N = (stop_t - start_t + 1)/by_t
+    Array.Parallel.init N ( fun i ->        
         printf "."
-        let t = start_t+i        
-        sampleVelocity wind t right_x |> Array.skip left_x
+        let t = start_t+(i*by_t)
+        let results = sampleVelocity wind t left_x right_x        
+        lock (monitor) (fun () ->
+            doneCounter <- doneCounter+1
+            if doneCounter % 100 = 0 then
+                let str = sprintf "(%d: %02.1f%%)" doneCounter ((float doneCounter)/(float N)*100.0)
+                printf "%s" str
+        )        
+        results
         ) |> List.ofArray

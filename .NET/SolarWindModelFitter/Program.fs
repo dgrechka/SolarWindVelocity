@@ -113,7 +113,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 [<EntryPoint>]
 let main argv =     
     //config
-    let doEstimate = false
+    let doEstimate = true
     let thinnObs = false
     let seed : uint32 ref = ref 0u
     if argv.Length>0
@@ -136,8 +136,8 @@ let main argv =
             ) obs
         else obs
 
-    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 && t < 2140.0) ch_data
-    let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 2140.0) obs
+    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 && t < 8000.0) ch_data
+    let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 8000.0) obs
 
     printfn "Predictor values count %d" predictorsT.RowsCount
     printfn "Observation values count %d" observationsT.RowsCount    
@@ -181,11 +181,12 @@ let main argv =
         let testWind = expandWind testWind
 
         let time_start = timeToTick 150.0        
-        let time_stop = timeToTick 200.0        
-        let space_start = 1400
-        let space_end = 1450
+        let time_stop = timeToTick 2000.0        
+        let time_by = 100
+        let space_start = 0
+        let space_end = 1587
 
-        let simulation = simulate testWind time_start time_stop space_start space_end
+        let simulation = simulate testWind time_start time_stop time_by space_start space_end
 
         //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
         let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")

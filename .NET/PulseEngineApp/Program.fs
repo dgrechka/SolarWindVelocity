@@ -21,11 +21,12 @@ let main argv =
     
     let testWind = expandWind testWind
 
-    let space_start = 0
+    let space_start = 10
     let space_end = 120
+    let time_start = 0
     let time_end = 120
     
-    let simulation = simulate testWind 0 time_end space_start space_end
+    let simulation = simulate testWind time_start time_end 3 space_start space_end
 
     //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
     let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
