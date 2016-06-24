@@ -77,6 +77,22 @@ let locationState wind time location =
             state
     fillState wind Set.empty
 
+//bursts at locations, wind that is not yet passed the location
+let locationStateOptimized wind time location =
+    let rec fillState wind (state:Set<Burst>) optimizedWind =        
+        match wind with
+        |   burst::tail  ->
+            let pos = getBurstPosition burst time
+            if pos = location then //looking for particular location
+                fillState tail (Set.add burst state) (burst::optimizedWind) //mixing in current burst, also keeping for future evaluations             
+            else if pos > location then
+                fillState tail state optimizedWind //not accounting and filtering out the burst for future evaluations
+            else
+                fillState tail state (burst::optimizedWind) //not accounting but keeping for future evaluations
+        |   []  ->
+            state,optimizedWind
+    fillState wind Set.empty []
+
 let expandWind wind = //interpolates the bursts linearly, so burst appear every tick
     let interpolate b1 b2 = //returns reversed list
         let t1 = b1.EmergenceTime
@@ -108,7 +124,7 @@ let windAvg (bursts:Set<Burst>) =
             acc_v+(burst.Velocity*d),acc_d+d
         let accumulated = Set.fold folder (0.0,0.0) bursts
         let acc_v,acc_d = accumulated
-        acc_v/acc_d,acc_d
+        if acc_v = 0.0 then 0.0,0.0 else acc_v/acc_d,acc_d
 
 let windAtDistance (world_state:WorldState) d =    
     if world_state.ContainsKey d then

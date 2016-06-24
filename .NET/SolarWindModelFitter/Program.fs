@@ -92,30 +92,39 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
     
     let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT    
 
-    let current_lglk p =
+    let current_lglk p wind =
         let t,v = p
         let v =  velocityToModel v //velocity to model units (1.0 = 1.0x10^8m/min)
         let t = timeToTick t //hours to model units (minutes)
-        let burstsAtEarth = locationState wind t (int(round(D)))
+        let burstsAtEarth,optimizedWind = locationStateOptimized wind t (int(round(D)))
         let windAtEart = windAvg burstsAtEarth
         let v_avg_Earth,d_avg_Earth = windAtEart
         let mu = (v_b*d_b+v_avg_Earth*d_avg_Earth)/(d_b+d_avg_Earth)
-        if System.Double.IsNaN mu then
-            log improbable
-        else
-            //let distribution = Statistics.Normal(mu,Sigma)
-            let varSq = Sigma*Sigma*Sigma*Sigma
-            let alpha_shape = mu*mu/varSq
-            let beta_rate = mu/varSq
-            let distribution = Statistics.Gamma(alpha_shape,beta_rate)         
-            let lglk = log_pdf distribution v
-            //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
-            lglk        
-    let res =
-        data |> Seq.toArray
-//             |> Array.Parallel.map current_lglk
-             |> Array.map current_lglk
-             |> Array.sum         
+        let result =
+            if System.Double.IsNaN mu then
+                log improbable
+            else
+                //let distribution = Statistics.Normal(mu,Sigma)
+                let varSq = Sigma*Sigma*Sigma*Sigma
+                let alpha_shape = mu*mu/varSq
+                let beta_rate = mu/varSq
+                let distribution = Statistics.Gamma(alpha_shape,beta_rate)         
+                let lglk = log_pdf distribution v
+                //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
+                lglk        
+        result,optimizedWind
+    
+    let folder state observation =
+        let wind,lglk_sum = state
+        let curLgLk,optimizedWind = current_lglk observation wind
+        //printfn "was %d now %d" (List.length wind) (List.length optimizedWind)
+        optimizedWind,(lglk_sum+curLgLk)
+
+    let folded =
+        data |> Seq.fold folder (wind,0.0)
+    
+    let res = snd folded
+                      
     iteration_counter <- iteration_counter + 1
     if res>bestLglk then        
         printfn "\n----------"
@@ -129,6 +138,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
         bestLglk <- res
     else
         printf "."
+        //printfn "lglk: %g" res
 
     res    
 
