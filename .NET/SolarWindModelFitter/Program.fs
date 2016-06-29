@@ -173,8 +173,8 @@ let main argv =
     //action
     printfn "Seed is %d" !seed
 
-    let ch_data = Table.Load @"..\..\..\..\ResultData\CH_features_cleaned_2015.csv"
-    let obs = Table.Load @"..\..\..\..\ResultData\ACE_EPAM_SW_2015.csv"    
+    let ch_data = Table.Load @"CH_features_cleaned_2015.csv"
+    let obs = Table.Load @"ACE_EPAM_SW_2015.csv"    
     
     let mutable counter = 0
     let obs =
