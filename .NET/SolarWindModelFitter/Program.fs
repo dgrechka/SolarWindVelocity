@@ -43,16 +43,18 @@ let getWind (predictorsT: Table) v1p v2p v3p d1p d2p d3p vap dap=
     //d2 = density(ap) = d3 * d2p
     //d1 = density(0.0) = d2 * d1p
 
+    let v2 = v3p*v2p
+    let d2 = d3p*d2p
+    let va,vb,vc = get2ndPolyCoefs 0.0 (max_hole*vap) max_hole (v2*v1p) v2 v3p
+    let da,db,dc = get2ndPolyCoefs 0.0 (max_hole*dap) max_hole (d2*d1p) d2 d3p
+            
+
     let generatePulse (t:float) area =
         let emergence_tick = timeToTick(t)
         let area = if area<0.0 then 0.0 else area
         if area = 0.0 then
             None
         else
-            let v2 = v3p*v2p
-            let d2 = d3p*d2p
-            let va,vb,vc = get2ndPolyCoefs 0.0 (max_hole*vap) max_hole (v2*v1p) v2 v3p
-            let da,db,dc = get2ndPolyCoefs 0.0 (max_hole*dap) max_hole (d2*d1p) d2 d3p
             let areaSq = area*area
             let burst = {
                 EmergenceTime=emergence_tick;
@@ -104,26 +106,27 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
             if System.Double.IsNaN mu then
                 log improbable
             else
-                //let distribution = Statistics.Normal(mu,Sigma)
-                let varSq = Sigma*Sigma*Sigma*Sigma
-                let alpha_shape = mu*mu/varSq
-                let beta_rate = mu/varSq
-                let distribution = Statistics.Gamma(alpha_shape,beta_rate)         
+                let distribution = Statistics.Normal(mu,Sigma)
+                //let varSq = Sigma*Sigma*Sigma*Sigma
+                //let alpha_shape = mu*mu/varSq
+                //let beta_rate = mu/varSq
+                //let distribution = Statistics.Gamma(alpha_shape,beta_rate)                         
                 let lglk = log_pdf distribution v
                 //printfn "mu:%g\tv:%g\tsigma:%g\tlglk:%g" mu v Sigma lglk
                 lglk        
         result,optimizedWind
     
     let folder state observation =
-        let wind,lglk_sum = state
+        let lglk_sum,wind = state
         let curLgLk,optimizedWind = current_lglk observation wind
         //printfn "was %d now %d" (List.length wind) (List.length optimizedWind)
-        optimizedWind,(lglk_sum+curLgLk)
+        (lglk_sum+curLgLk),optimizedWind
 
     let folded =
-        data |> Seq.fold folder (wind,0.0)
+        data |> Seq.toArray |>
+        Array.fold folder (0.0,wind)
     
-    let res = snd folded
+    let res = fst folded
                       
     iteration_counter <- iteration_counter + 1
     if res>bestLglk then        
@@ -134,10 +137,12 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
         printfn "background wind\tV:%g\tD:%g" v_b d_b
         printfn "Noise sigma:\t%g" Sigma
         printfn "Earth distance:\t%f" D
-        System.Console.Beep(5000,300)
+        System.Console.Beep(3500,500)
         bestLglk <- res
     else
         printf "."
+        System.Console.Out.Flush()
+        System.Console.Beep(2000,100)
         //printfn "lglk: %g" res
 
     res    
@@ -190,18 +195,16 @@ let main argv =
 
     let estimate predictorsT observationsT =
         let parameters = Parameters.Empty
-                            .Add("V_p3",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("V_p2",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("V_p1",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("D_p3",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("D_p2",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("D_p1",[|0.8|],eps,1.0,isLog=true,delay=0)
-                            .Add("D_p",[|0.5|],eps,1.0,isLog=true,delay=0)
+                            .Add("V_p3",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("V_p2",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("V_p1",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("D_p3",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("D_p2",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("D_p1",[|0.8|],eps,1.0,isLog=false,delay=0)                            
                             .Add("Area_vp",[|0.5|],eps,1.0,isLog=true,delay=0)
                             .Add("Area_dp",[|0.5|],eps,1.0,isLog=true,delay=0)
                             .Add("V_bg",[|0.1|],eps,0.5,isLog=true,delay=0)
-                            .Add("D_bg",[|0.5|],eps,1.0,isLog=true,delay=0)
-                            //.Add("D_bg",[|0.5|])
+                            .Add("D_bg",[|0.5|],eps,10.0,isLog=true,delay=0)
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
                             .Add("Sigma",[|0.01|],eps, 0.5,isLog=true,delay=0)                            
         Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 10000, 5000,rng=rng)
