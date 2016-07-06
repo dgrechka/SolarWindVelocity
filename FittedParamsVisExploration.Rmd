@@ -14,58 +14,58 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(ggplot2)
 
-run16_v_x <- c(0,1.13312,20)
-run16_v_y <- c(0.219381,0.229429,0.328992)
-run16_v_t <- data.frame(x=run16_v_x,y=run16_v_y)
-run16_vb <- 3.18886e-253
 
-run16_v_model <- lm(y ~ poly(x,2),data=run16_v_t)
-run16_v_model_pred <- function(x) {
-  predict(run16_v_model,newdata = data.frame(x=x))
-  }
+prepareVisData <- function(id,lglk,x,y,bg) {
+t <- data.frame(x=x,y=y)
 
+m <- lm(y ~ poly(x,2),data=t)
+m_pred <- function(x) {
+  predict(m,newdata = data.frame(x=x))
+}
 
-run17_v_x <- c(0,9.45249e-98,20)
-run17_v_y <- c(0.135636,0.180604,0.443775)
-run17_v_t <- data.frame(x=run17_v_x,y=run17_v_y)
-run17_vb <- 0.267058
+return(
+  list(df=t,pred=m_pred,bg=bg,lglk_str=paste0('run ',id,' (lglk ',lglk,')'))
+);
+}
 
-run17_v_model <- lm(y ~ poly(x,2),data=run17_v_t)
-run17_v_model_pred <- function(x) {
-  predict(run17_v_model,newdata = data.frame(x=x))
-  }
+to_km_per_s <- function(v) {return(v/(1000.0 * 60.0 / 10.0**8.0));}
 
+vis5 <- prepareVisData(
+  5,
+  11654.1,
+  c(0,9.09046,20),
+  to_km_per_s(c(0.142469,0.423218,0.802131)),
+  to_km_per_s(0.244206))
 
-
-run18_v_x <- c(0,1.13312,20)
-run18_v_y <- c(0.219381,0.229429,0.328992)
-run18_v_t <- data.frame(x=run18_v_x,y=run18_v_y)
-run18_vb <- 3.18886e-253
-
-run18_v_model <- lm(y ~ poly(x,2),data=run18_v_t)
-run18_v_model_pred <- function(x) {
-  predict(run18_v_model,newdata = data.frame(x=x))
-  }
-
-
-
+vis2 <- prepareVisData(
+  2,
+  10962.7,
+  c(0,10.1969,20),
+  to_km_per_s(c(0.240187,0.288317,0.435995)),
+  to_km_per_s(3.29252e-193))
 
 linetype_scale <- c('1'='solid','2'='dashed')
-linetype_scale_labels <- c('1'='burst func','2'='background')
-color_scale <- c('16'='red','17'='green','18'='blue')
-color_scale_labels <- c('16'='run 16','17'='run 17','18'='run 18')
-
+linetype_scale_labels <- c('1'='burst func','2'='background level')
+color_scale <- c('5'='red','2'='green','18'='blue')
+color_scale_labels <- c('5'=vis5$lglk_str,'2'=vis2$lglk_str,'18'='fit run 18')
 
 a = ggplot()+
+  theme_bw()+
+  ggtitle("Particle burst velocity as a function of coronal hole area")+
+  xlab("coronal holes total area (%)")+
+  ylab("particle burst velocity (km/s)")+
+
   scale_linetype_manual(values= linetype_scale,labels=linetype_scale_labels)+
   scale_color_manual(values= color_scale,labels=color_scale_labels)+
-  geom_point(data=run16_v_t, aes(x=x, y=y,color='16'))+
-  stat_function(data=run16_v_t,aes(x,linetype='1',color='16'),fun=run16_v_model_pred) +
-  geom_hline(aes(yintercept=run16_vb,linetype='2',color='16'))+
   
-  geom_point(data=run17_v_t, aes(x=x, y=y,color='17'))+
-  stat_function(data=run17_v_t,aes(x,linetype='1',color='17'),fun=run17_v_model_pred) +
-  geom_hline(aes(yintercept=run17_vb,linetype='2',color='17'))
+  geom_point(data=vis5$df, aes(x=x, y=y,color='5'))+
+  stat_function(data=vis5$df,aes(x,linetype='1',color='5'),fun=vis5$pred) +
+  geom_hline(aes(yintercept=vis5$bg,linetype='2',color='5')) +
+  
+  geom_point(data=vis2$df, aes(x=x, y=y,color='2'))+
+  stat_function(data=vis2$df,aes(x,linetype='1',color='2'),fun=vis2$pred) +
+  geom_hline(aes(yintercept=vis2$bg,linetype='2',color='2'))
+  
 
 print(a)
 ```
