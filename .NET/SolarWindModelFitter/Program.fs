@@ -67,9 +67,9 @@ let getWind (predictorsT: Table) v1p v2p v3p d1p d2p d3p vap dap=
 
 let mutable bestLglk = System.Double.NegativeInfinity
 
-let mutable iteration_counter = 0
+let mutable iteration_counter = 0   
 
-let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =                
+let logLikelihood (predictorsT: Table) (observationsT: Table) v1p v2p v3p d1p d2p d3p vap dap v_b d_b D Sigma =
     //Distance to Earth
     //varies between 0.9832898912 and 1.0167103335 AU. 
     //which is 1.47098074 to 1.52097701 ×10^8 km
@@ -77,19 +77,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
     //1 model space step is 1.0x10^8m which is approx 10 Earth diameter
     //thus 1 AU is ~ 1500 model space steps
 
-    let D = p.GetValue "D" //distance to Earth
-    let Sigma = p.GetValue "Sigma" //observation noise    
-    let v3p = p.GetValue "V_p3"
-    let v2p = p.GetValue "V_p2"
-    let v1p = p.GetValue "V_p1"
-    let d3p = p.GetValue "D_p3"
-    let d2p = p.GetValue "D_p2"
-    let d1p = p.GetValue "D_p1"
-    let vap = p.GetValue "Area_vp"
-    let dap = p.GetValue "Area_dp"
-    let d_b = p.GetValue "D_bg" //density of background wind
-    let v_b = p.GetValue "V_bg" //velocity of background wind
-
+    
     let wind = getWind predictorsT v1p v2p v3p d1p d2p d3p vap dap |> expandWind    
     
     let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT    
@@ -144,8 +132,22 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) (p: Parameters) =
         System.Console.Out.Flush()
         System.Console.Beep(2000,100)
         //printfn "lglk: %g" res
+    res
 
-    res    
+let logLikelihoodP (predictorsT: Table) (observationsT: Table) (p: Parameters) =
+    let D = p.GetValue "D" //distance to Earth
+    let Sigma = p.GetValue "Sigma" //observation noise    
+    let v3p = p.GetValue "V_p3"
+    let v2p = p.GetValue "V_p2"
+    let v1p = p.GetValue "V_p1"
+    let d3p = p.GetValue "D_p3"
+    let d2p = p.GetValue "D_p2"
+    let d1p = p.GetValue "D_p1"
+    let vap = p.GetValue "Area_vp"
+    let dap = p.GetValue "Area_dp"
+    let d_b = p.GetValue "D_bg" //density of background wind
+    let v_b = p.GetValue "V_bg" //velocity of background wind
+    logLikelihood predictorsT observationsT v1p v2p v3p d1p d2p d3p vap dap v_b d_b D Sigma
 
 [<EntryPoint>]
 let main argv =     
@@ -162,8 +164,9 @@ let main argv =
     printfn "Basic tests passed"
 
     //config
-    let doEstimate = true
+    let doEstimate = false
     let thinnObs = false
+    let checkLglkForSimulation = true
     let seed : uint32 ref = ref 0u
     if argv.Length>0
         then System.UInt32.TryParse(argv.[0],seed) |> ignore
@@ -207,7 +210,7 @@ let main argv =
                             .Add("D_bg",[|0.5|],eps,10.0,isLog=true,delay=0)
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
                             .Add("Sigma",[|0.01|],eps, 0.5,isLog=true,delay=0)                            
-        Sampler.runmcmc(parameters, logLikelihood predictorsT observationsT, 10000, 5000,rng=rng)
+        Sampler.runmcmc(parameters, logLikelihoodP predictorsT observationsT, 10000, 5000,rng=rng)
     if doEstimate then
         let res = estimate predictorsT observationsT    
         Sampler.print res
@@ -216,74 +219,105 @@ let main argv =
 //            |> Seq.mapi (fun i {values=sample} -> Column.Create(res.sampler.Parameters.GetName(i),sample))
 //            |> Table.OfColumns
 //        printfn "done"
-        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)   
-        0     
-    else        
-        //simulation    
-//        let v_m = 0.470203
-//        let v_p = 0.558267
-//        let d_m = 0.519722
-//        let d_p = 1.25e-245
-//        let v_b = 0.224688
-//        let d_b = 0.675671
-//        let D = 1795.86
-//        let Sigma = 0.0527357
-//
-//        let testWind = getWind predictorsT v_m v_p d_m d_p
-//
-//        let testWind = expandWind testWind
-//
-//        let time_start = timeToTick 1500.0        
-//        let time_stop = timeToTick 2000.0        
-//        let time_by = 100
-//        let space_start = 0
-//        let space_end = 1587
-//
-//        let simulation = simulate testWind time_start time_stop time_by space_start space_end
-//
-//        //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
-//        let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
-//        ds.IsAutocommitEnabled <- false
-//        //let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
-//        let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
-//        //let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
-//        let timeAxis = ds.AddVariable<int>("t",[|"t"|])
-//        let spaceAxis = ds.AddVariable<int>("x",[|"x"|])        
-//
-//        let timeObsAxis = ds.AddVariable<int>("obs_time",[|"t_obs"|])
-//        let obsAxis = ds.AddVariable<float>("obs",[|"t_obs"|])
-//        let predAxis = ds.AddVariable<float>("pred",[|"t_obs"|])
-//        let predMeanAxis = ds.AddVariable<float>("predMean",[|"t_obs"|])
-//
-//        let dummy =
-//            Table.MapToColumn "pred" ["ts";"velocity_mean"]  (fun (t:float) (v:float) ->
-//                let burstsAtEarth = locationState testWind (timeToTick t) (int(round(D)))
-//                let windAtEart = windAvg burstsAtEarth
-//                let v_avg_Earth,d_avg_Earth = windAtEart
-//                let mu = (v_b*d_b+v_avg_Earth*d_avg_Earth)/(d_b+d_avg_Earth)
-//                        
-//                let n = Statistics.Normal(mu,Sigma)
-//                let pred = Statistics.draw rng n
-//                timeObsAxis.Append([|timeToTick t|]);
-//                obsAxis.Append([|v|]);
-//                predAxis.Append([|toKmPerS pred|]);
-//                predMeanAxis.Append([|toKmPerS mu|]);
-//                //printfn "%f %f %f %f" t v pred mu
-//                pred
-//                ) observationsT
-//
-//        printfn "simulated for %d time moments" (dummy.RowsCount)
-//
-//        List.iteri (fun i sample_speed ->
-//            let t = time_start+i
-//            let sample_speed_km_s = Array.map toKmPerS sample_speed
-//            windSpVar.Append(sample_speed_km_s,"t")            
-//            timeAxis.Append([|t|]);
-//            )
-//            simulation
-//        let spaceAxisData = Array.init (space_end-space_start+1) (fun i -> space_start+i)
-//        spaceAxis.Append(spaceAxisData)
-//
-//        ds.Commit()        
+        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)                
+    else                
+        //simulation            
+
+//2016-07-06T19:59:51.084158200Z 
+//iteration:193	log-likelihood:10590	improvement:8.71272
+//Vfunc nodes:	(0;0.231122) (4.44714;0.235696) (20;0.903898)
+//Dfunc nodes:	(0;0.0299352) (16.7414;0.0707056) (20;0.691838)
+//background wind	V:2.70645e-12	D:1.39515e-06
+//Noise sigma:	0.0625562
+//Earth distance:	1225.551240
+
+        let v0 = 0.231122
+        let v1 = 0.235696
+        let v2 = 0.903898
+        let va_1 = 4.44714
+        let v_bg = 2.70645e-12
+        let d0 = 0.0299352
+        let d1 = 0.0707056
+        let d2 = 0.691838
+        let da_1 = 16.7414
+        let d_bg = 1.39515e-06
+        let D = 1225.551240
+        let Sigma = 0.0625562
+        let reference_lglk = 10590.0
+
+        //converting back parameters
+        let v_p2 = v2/max_velocity
+        let v_p1 = v1/v2
+        let v_p0 = v0/v1
+        let v_pa = va_1/max_hole
+        let d_p2 = d2
+        let d_p1 = d1/d2
+        let d_p0 = d0/d1
+        let d_pa = da_1/max_hole
+        if checkLglkForSimulation then
+            printfn "Simulation mode, checking lglk..."
+            let lglk = logLikelihood predictorsT observationsT v_p0 v_p1 v_p2 d_p0 d_p1 d_p2 v_pa d_pa v_bg d_bg D Sigma
+            printfn "lglk %g" lglk;
+            assert(abs(lglk-reference_lglk)<1e-10)
+            printfn "lglk matches accpected value. Simulating..."
+        else
+            printfn "lglk check disabled. Simulating..."
+
+        let testWind = getWind predictorsT v_p0 v_p1 v_p2 d_p0 d_p1 d_p2 v_pa d_pa
+
+        let testWind = expandWind testWind
+
+        let time_start = timeToTick 1500.0        
+        let time_stop = timeToTick 2000.0        
+        let time_by = 100
+        let space_start = 0
+        let space_end = 1587
+
+        let simulation = simulate testWind time_start time_stop time_by space_start space_end
+
+        //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
+        let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
+        ds.IsAutocommitEnabled <- false
+        //let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
+        let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
+        //let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
+        let timeAxis = ds.AddVariable<int>("t",[|"t"|])
+        let spaceAxis = ds.AddVariable<int>("x",[|"x"|])        
+
+        let timeObsAxis = ds.AddVariable<int>("obs_time",[|"t_obs"|])
+        let obsAxis = ds.AddVariable<float>("obs",[|"t_obs"|])
+        let predAxis = ds.AddVariable<float>("pred",[|"t_obs"|])
+        let predMeanAxis = ds.AddVariable<float>("predMean",[|"t_obs"|])
+
+        let dummy =
+            Table.MapToColumn "pred" ["ts";"velocity_mean"]  (fun (t:float) (v:float) ->
+                let burstsAtEarth = locationState testWind (timeToTick t) (int(round(D)))
+                let windAtEart = windAvg burstsAtEarth
+                let v_avg_Earth,d_avg_Earth = windAtEart
+                let mu = (v_bg*d_bg+v_avg_Earth*d_avg_Earth)/(d_bg+d_avg_Earth)
+                        
+                let n = Statistics.Normal(mu,Sigma)
+                let pred = Statistics.draw rng n
+                timeObsAxis.Append([|timeToTick t|]);
+                obsAxis.Append([|v|]);
+                predAxis.Append([|toKmPerS pred|]);
+                predMeanAxis.Append([|toKmPerS mu|]);
+                //printfn "%f %f %f %f" t v pred mu
+                pred
+                ) observationsT
+
+        printfn "simulated for %d time moments" (dummy.RowsCount)
+
+        List.iteri (fun i sample_speed ->
+            let t = time_start+i
+            let sample_speed_km_s = Array.map toKmPerS sample_speed
+            windSpVar.Append(sample_speed_km_s,"t")            
+            timeAxis.Append([|t|]);
+            )
+            simulation
+        let spaceAxisData = Array.init (space_end-space_start+1) (fun i -> space_start+i)
+        spaceAxis.Append(spaceAxisData)
+
+        ds.Commit()        
     
     0 // return an integer exit code
