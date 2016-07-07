@@ -166,7 +166,7 @@ let main argv =
     //config
     let doEstimate = false
     let thinnObs = false
-    let checkLglkForSimulation = true
+    let checkLglkForSimulation = false
     let seed : uint32 ref = ref 0u
     if argv.Length>0
         then System.UInt32.TryParse(argv.[0],seed) |> ignore
@@ -223,27 +223,27 @@ let main argv =
     else                
         //simulation            
 
-//2016-07-06T19:59:51.084158200Z 
-//iteration:193	log-likelihood:10590	improvement:8.71272
-//Vfunc nodes:	(0;0.231122) (4.44714;0.235696) (20;0.903898)
-//Dfunc nodes:	(0;0.0299352) (16.7414;0.0707056) (20;0.691838)
-//background wind	V:2.70645e-12	D:1.39515e-06
-//Noise sigma:	0.0625562
-//Earth distance:	1225.551240
+//2016-07-07T18:50:28.487001300Z 
+//iteration:156	log-likelihood:11869.9	improvement:229.801
+//Vfunc nodes:	(0;0.228958) (5.6304;0.263253) (20;0.349027)
+//Dfunc nodes:	(0;0.13812) (17.0313;0.466123) (20;0.890103)
+//background wind	V:3.65482e-119	D:1.15844e-123
+//Noise sigma:	0.0497358
+//Earth distance:	1318.041110
 
-        let v0 = 0.231122
-        let v1 = 0.235696
-        let v2 = 0.903898
-        let va_1 = 4.44714
-        let v_bg = 2.70645e-12
-        let d0 = 0.0299352
-        let d1 = 0.0707056
-        let d2 = 0.691838
-        let da_1 = 16.7414
-        let d_bg = 1.39515e-06
+        let v0 = 0.228958
+        let v1 = 0.263253
+        let v2 = 0.349027
+        let va_1 = 5.6304
+        let v_bg = 3.65482e-119
+        let d0 = 0.13812
+        let d1 = 0.466123
+        let d2 = 0.890103
+        let da_1 = 17.0313
+        let d_bg = 1.15844e-123
         let D = 1225.551240
-        let Sigma = 0.0625562
-        let reference_lglk = 10590.0
+        let Sigma = 0.0497358
+        let reference_lglk = 11869.9
 
         //converting back parameters
         let v_p2 = v2/max_velocity
@@ -272,23 +272,24 @@ let main argv =
         let time_by = 100
         let space_start = 0
         let space_end = 1587
-
-        let simulation = simulate testWind time_start time_stop time_by space_start space_end
-
+    
         //Dumping the data to NetCDF using http://research.microsoft.com/en-us/downloads/ccf905f6-34c6-4845-892e-a5715a508fa3/
         let ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?openMode=create&file=simulation.nc")
+        let dsCsv = Microsoft.Research.Science.Data.DataSet.Open("msds:csv?openMode=create&file=simulation.csv&appendMetadata=false&saveHeader=true")
         ds.IsAutocommitEnabled <- false
+        dsCsv.IsAutocommitEnabled <- false
         //let windVar = ds.AddVariable<float>("windDens",[|"x";"t"|])
         let windSpVar = ds.AddVariable<float>("avgWindSpeed",[|"x";"t"|])
         //let windSpMaxVar = ds.AddVariable<float>("maxWindSpeed",[|"x";"t"|])
         let timeAxis = ds.AddVariable<int>("t",[|"t"|])
         let spaceAxis = ds.AddVariable<int>("x",[|"x"|])        
 
-        let timeObsAxis = ds.AddVariable<int>("obs_time",[|"t_obs"|])
-        let obsAxis = ds.AddVariable<float>("obs",[|"t_obs"|])
-        let predAxis = ds.AddVariable<float>("pred",[|"t_obs"|])
-        let predMeanAxis = ds.AddVariable<float>("predMean",[|"t_obs"|])
+        let timeObsAxis = dsCsv.AddVariable<int>("obs_time",[|"t_obs"|])
+        let obsAxis = dsCsv.AddVariable<float>("obs",[|"t_obs"|])
+        let predAxis = dsCsv.AddVariable<float>("pred",[|"t_obs"|])
+        let predMeanAxis = dsCsv.AddVariable<float>("predMean",[|"t_obs"|])
 
+        printfn "Simulating for observation points..."
         let dummy =
             Table.MapToColumn "pred" ["ts";"velocity_mean"]  (fun (t:float) (v:float) ->
                 let burstsAtEarth = locationState testWind (timeToTick t) (int(round(D)))
@@ -306,7 +307,11 @@ let main argv =
                 pred
                 ) observationsT
 
-        printfn "simulated for %d time moments" (dummy.RowsCount)
+        printfn "Simulated for %d time moments" (dummy.RowsCount)
+        dsCsv.Commit();
+        printfn "Simulating and sampling in full scale..."
+        
+        let simulation = simulate testWind time_start time_stop time_by space_start space_end
 
         List.iteri (fun i sample_speed ->
             let t = time_start+i
@@ -319,5 +324,6 @@ let main argv =
         spaceAxis.Append(spaceAxisData)
 
         ds.Commit()        
+        
     
     0 // return an integer exit code

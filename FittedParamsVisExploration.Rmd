@@ -69,3 +69,27 @@ a = ggplot()+
 
 print(a)
 ```
+
+Plotting simulations
+
+```{r simulations}
+sim1 <- read.csv('ResultData/docker-0.2-seed-6-iter-156.csv')
+sim1.sigma <- to_km_per_s(0.0497358)
+sim1$lb68 <- sim1$predMean-sim1.sigma
+sim1$ub68 <- sim1$predMean+sim1.sigma
+sim1q1 <- sim1[sim1$obs_time<=127590,] #first quantile
+
+b <- ggplot() +
+    theme_bw()+
+    scale_color_manual(values= color_scale,labels=color_scale_labels)+
+    scale_fill_manual(values= color_scale,labels=color_scale_labels)+
+  
+    geom_point(data=sim1q1,aes(x=obs_time,y=obs),shape=1) +
+    geom_line(data=sim1q1,aes(x=obs_time,y=predMean,color='5'),lwd=1) +
+    geom_ribbon(data=sim1q1,
+                aes(x=obs_time,
+                    ymin=lb68,
+                    ymax=ub68,color='5',fill='5'),
+                alpha=.06)
+print(b)
+```
