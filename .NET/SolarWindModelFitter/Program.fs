@@ -19,35 +19,71 @@ let toKmPerS v = v / a
 
 let max_hole= 20.0
 let max_velocity = 1.0
-      
-let get2ndPolyCoefs x0 x1 x2 y0 y1 y2 = 
-    let m = matrix [[ x0*x0; x0; 1.0]
-                    [ x1*x1; x1; 1.0]
-                    [ x2*x2; x2; 1.0]]
-    let r_part = vector [y0; y1; y2]
+
+//2nd order polynomial coeffecients, so the slope at (x2;y2) is 0.0
+let getMaxSlope2ndPolyCoefs y0 y2 x2 = 
+    assert(y0 <= y2)
+    let m = matrix [[ 0.0; 0.0; 1.0]
+                    [ x2*x2; x2; 1.0]
+                    [ 2.0*x2; 1.0; 0.0]]
+    let r_part = vector [y0; y2; 0.0]
     let solution = m.Solve r_part
+
+    //asserting initial requrements
     assert(Vector.length solution = 3)
+    let treshold = 1e-10
+    assert(abs(solution.[2]-y0)<treshold)
+    assert(solution.[1] > 0.0)
+    assert(abs(solution.[0]*x2*x2 + solution.[1]*x2+solution.[2]-y2)<treshold)
+    assert(abs(2.0*solution.[0]*x2 + solution.[1])<treshold)
+
     (solution.[0],solution.[1],solution.[2]) 
 
-let getWind (predictorsT: Table) v1p v2p v3p d1p d2p d3p vap dap= 
+let get2ndPolyCoefs y0 y2 x2 k = 
+    let m = matrix [[ 0.0; 0.0; 1.0]
+                    [ x2*x2; x2; 1.0]
+                    [ 0.0; 1.0; 0.0]]
+    let r_part = vector [y0; y2; k]
+    let solution = m.Solve r_part
+
+    //asserting initial requrements
+    assert(Vector.length solution = 3)
+    assert(solution.[2]=y0)
+    assert(solution.[0]*x2*x2 + solution.[1]*x2+solution.[2]=y2)
+    assert(solution.[1]=k)
+
+    (solution.[0],solution.[1],solution.[2]) 
+
+
+let getWind (predictorsT: Table) v0p v2p v_kp d0p d2p d_kp = 
     //velocity curve definition is transforemed
     //all parameters are portions:
 
-    //velocity(area) function crosses these 3 points:
-    //v3 = velocity(max_hole) = max_velocity * v3p
-    //v2 = velocity(ap) = v3 * v2p
-    //v1 = velocity(0.0) = v2 * v1p
+    //velocity(area) function crosses these 2 points:
+    //v2 = velocity(max_hole) = max_velocity * v3p    
+    //v0 = velocity(0.0) = v2 * v0p
+    //and
+    //v_k = v_kp*velocity_max_slope(0.0)
 
-    //denity(area) function crosses these 3 points:
+    let v2 = v2p
+    let v0 = v2*v0p
+
+    let _,vk_max,_ = getMaxSlope2ndPolyCoefs v0 v2 max_hole
+    let k = vk_max*v_kp
+    let va,vb,vc = get2ndPolyCoefs v0 v2 max_hole k
+    
+    //denity(area) function crosses these 2 points:
     //d3 = density(max_hole) =  d3p
-    //d2 = density(ap) = d3 * d2p
-    //d1 = density(0.0) = d2 * d1p
+    //d2 = density(ap) = d3 * d0p
+    //and
+    //d_k = d_kp*density_max_slope(0.0)
 
-    let v2 = v3p*v2p
-    let d2 = d3p*d2p
-    let va,vb,vc = get2ndPolyCoefs 0.0 (max_hole*vap) max_hole (v2*v1p) v2 v3p
-    let da,db,dc = get2ndPolyCoefs 0.0 (max_hole*dap) max_hole (d2*d1p) d2 d3p
-            
+    let d2 = d2p
+    let d0 = d2*d0p
+
+    let _,dk_max,_ = getMaxSlope2ndPolyCoefs d0 d2 max_hole
+    let k = dk_max*d_kp
+    let da,db,dc = get2ndPolyCoefs d0 d2 max_hole k
 
     let generatePulse (t:float) area =
         let emergence_tick = timeToTick(t)
@@ -69,7 +105,7 @@ let mutable bestLglk = System.Double.NegativeInfinity
 
 let mutable iteration_counter = 0   
 
-let logLikelihood (predictorsT: Table) (observationsT: Table) v1p v2p v3p d1p d2p d3p vap dap v_b d_b D Sigma =
+let logLikelihood (predictorsT: Table) (observationsT: Table) v0p v2p v_kp d0p d2p d_kp v_b d_b D Sigma =
     //Distance to Earth
     //varies between 0.9832898912 and 1.0167103335 AU. 
     //which is 1.47098074 to 1.52097701 ×10^8 km
@@ -78,7 +114,7 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) v1p v2p v3p d1p d2
     //thus 1 AU is ~ 1500 model space steps
 
     
-    let wind = getWind predictorsT v1p v2p v3p d1p d2p d3p vap dap |> expandWind    
+    let wind = getWind predictorsT v0p v2p v_kp d0p d2p d_kp |> expandWind    
     
     let data = Table.Map ["ts";"velocity_mean"] (fun (t:float) (v:float) -> (t,v)) observationsT    
 
@@ -119,12 +155,12 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) v1p v2p v3p d1p d2
     iteration_counter <- iteration_counter + 1
     if res>bestLglk then        
         printfn "\n----------"
-        printfn "\niteration:%d\tlog-likelihood:%g\timprovement:%g" iteration_counter res (res-bestLglk)
-        printfn "Vfunc nodes:\t(%g;%g) (%g;%g) (%g;%g)" 0.0 (v3p*v2p*v1p) (vap*max_hole) (v3p*v2p) max_hole v3p
-        printfn "Dfunc nodes:\t(%g;%g) (%g;%g) (%g;%g)"0.0 (d3p*d2p*d1p) (dap*max_hole) (d3p*d2p) max_hole d3p
-        printfn "background wind\tV:%g\tD:%g" v_b d_b
-        printfn "Noise sigma:\t%g" Sigma
-        printfn "Earth distance:\t%f" D
+        printfn "\niteration:%d log-likelihood:%g improvement:%g" iteration_counter res (res-bestLglk)
+        printfn "Vfunc nodes: (%g;%g) (%g;%g) slope: %g" 0.0 (v2p*v0p) max_hole v2p v_kp
+        printfn "Dfunc nodes: (%g;%g) (%g;%g) slope: %g" 0.0 (d2p*d0p) max_hole d2p d_kp
+        printfn "background wind V:%g D:%g" v_b d_b
+        printfn "Noise sigma: %g" Sigma
+        printfn "Earth distance: %f" D
         System.Console.Beep(3500,500)
         bestLglk <- res
     else
@@ -136,37 +172,23 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) v1p v2p v3p d1p d2
 
 let logLikelihoodP (predictorsT: Table) (observationsT: Table) (p: Parameters) =
     let D = p.GetValue "D" //distance to Earth
-    let Sigma = p.GetValue "Sigma" //observation noise    
-    let v3p = p.GetValue "V_p3"
+    let Sigma = p.GetValue "Sigma" //observation noise        
     let v2p = p.GetValue "V_p2"
-    let v1p = p.GetValue "V_p1"
-    let d3p = p.GetValue "D_p3"
+    let v0p = p.GetValue "V_p0"    
     let d2p = p.GetValue "D_p2"
-    let d1p = p.GetValue "D_p1"
-    let vap = p.GetValue "Area_vp"
-    let dap = p.GetValue "Area_dp"
+    let d0p = p.GetValue "D_p0"
+    let v_kp = p.GetValue "V_kp"
+    let d_kp = p.GetValue "D_kp"
     let d_b = p.GetValue "D_bg" //density of background wind
     let v_b = p.GetValue "V_bg" //velocity of background wind
-    logLikelihood predictorsT observationsT v1p v2p v3p d1p d2p d3p vap dap v_b d_b D Sigma
+    logLikelihood predictorsT observationsT v0p v2p v_kp d0p d2p d_kp v_b d_b D Sigma
 
 [<EntryPoint>]
 let main argv =     
-    //tests
-    let (a,b,c) = get2ndPolyCoefs -1.0 0.0 1.0 2.0 1.0 2.0
-    assert(a=1.0)
-    assert(b=0.0)
-    assert(c=1.0)
-
-    let (a,b,c) = get2ndPolyCoefs 0.0 1.0 2.0 2.0 1.0 6.0
-    assert(a=3.0)
-    assert(b= -4.0)
-    assert(c=2.0)
-    printfn "Basic tests passed"
-
     //config
-    let doEstimate = false
+    let doEstimate = true
     let thinnObs = false
-    let checkLglkForSimulation = false
+    let checkLglkForSimulation = true
     let seed : uint32 ref = ref 0u
     if argv.Length>0
         then System.UInt32.TryParse(argv.[0],seed) |> ignore
@@ -174,7 +196,7 @@ let main argv =
 
 
     //action
-    printfn "Seed is %d" !seed
+    printfn "Random seed is %d" !seed
 
     let ch_data = Table.Load @"..\..\..\..\ResultData\CH_features_cleaned_2015.csv"
     let obs = Table.Load @"..\..\..\..\ResultData\ACE_EPAM_SW_2015.csv"    
@@ -198,14 +220,12 @@ let main argv =
 
     let estimate predictorsT observationsT =
         let parameters = Parameters.Empty
-                            .Add("V_p3",[|0.8|],eps,1.0,isLog=false,delay=0)
                             .Add("V_p2",[|0.8|],eps,1.0,isLog=false,delay=0)
-                            .Add("Area_vp",[|0.5|],0.1,1.0,isLog=false,delay=0)
-                            .Add("V_p1",[|0.8|],eps,1.0,isLog=false,delay=0)
-                            .Add("D_p3",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("V_p0",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("V_kp",[|0.5|],eps,1.0,isLog=false,delay=0)                            
                             .Add("D_p2",[|0.8|],eps,1.0,isLog=false,delay=0)
-                            .Add("Area_dp",[|0.5|],0.1,1.0,isLog=false,delay=0)
-                            .Add("D_p1",[|0.8|],eps,1.0,isLog=false,delay=0)                            
+                            .Add("D_p0",[|0.8|],eps,1.0,isLog=false,delay=0)
+                            .Add("D_kp",[|0.5|],eps,1.0,isLog=false,delay=0)                            
                             .Add("V_bg",[|0.1|],eps,0.5,isLog=true,delay=0)
                             .Add("D_bg",[|0.5|],eps,10.0,isLog=true,delay=0)
                             .Add("D",[|1500.0|],1200.0,1800.0,isLog=false,delay=0)
@@ -223,47 +243,36 @@ let main argv =
     else                
         //simulation            
 
-//2016-07-07T18:50:28.487001300Z 
-//iteration:156	log-likelihood:11869.9	improvement:229.801
-//Vfunc nodes:	(0;0.228958) (5.6304;0.263253) (20;0.349027)
-//Dfunc nodes:	(0;0.13812) (17.0313;0.466123) (20;0.890103)
-//background wind	V:3.65482e-119	D:1.15844e-123
-//Noise sigma:	0.0497358
-//Earth distance:	1318.041110
-
-        let v0 = 0.228958
-        let v1 = 0.263253
+        let v0 = 0.228958        
         let v2 = 0.349027
-        let va_1 = 5.6304
+        let v_kp = 0.5
         let v_bg = 3.65482e-119
-        let d0 = 0.13812
-        let d1 = 0.466123
-        let d2 = 0.890103
-        let da_1 = 17.0313
+        let d0 = 0.13812        
+        let d2 = 0.890103        
+        let d_kp = 0.5
         let d_bg = 1.15844e-123
         let D = 1225.551240
         let Sigma = 0.0497358
         let reference_lglk = 11869.9
 
         //converting back parameters
-        let v_p2 = v2/max_velocity
-        let v_p1 = v1/v2
-        let v_p0 = v0/v1
-        let v_pa = va_1/max_hole
-        let d_p2 = d2
-        let d_p1 = d1/d2
-        let d_p0 = d0/d1
-        let d_pa = da_1/max_hole
+        let v_p2 = v2/max_velocity        
+        let v_p0 = v0/v2        
+        let d_p2 = d2        
+        let d_p0 = d0/d2
+        
+        //let _,vkm,_ = getMaxSlope2ndPolyCoefs v0 v2 max_hole
+                
         if checkLglkForSimulation then
             printfn "Simulation mode, checking lglk..."
-            let lglk = logLikelihood predictorsT observationsT v_p0 v_p1 v_p2 d_p0 d_p1 d_p2 v_pa d_pa v_bg d_bg D Sigma
+            let lglk = logLikelihood predictorsT observationsT v_p0 v_p2 v_kp d_p0 d_p2 d_kp v_bg d_bg D Sigma
             printfn "lglk %g" lglk;
             assert(abs(lglk-reference_lglk)<1e-10)
             printfn "lglk matches accpected value. Simulating..."
         else
             printfn "lglk check disabled. Simulating..."
 
-        let testWind = getWind predictorsT v_p0 v_p1 v_p2 d_p0 d_p1 d_p2 v_pa d_pa
+        let testWind = getWind predictorsT v_p0 v_p2 v_kp d_p0 d_p2 d_kp
 
         let testWind = expandWind testWind
 
