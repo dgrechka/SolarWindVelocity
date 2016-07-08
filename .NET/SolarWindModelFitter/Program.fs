@@ -214,7 +214,7 @@ let main argv =
     let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 8000.0) obs
 
     printfn "Predictor values count %d" predictorsT.RowsCount
-    printfn "Observation values count %d" observationsT.RowsCount    
+    printfn "Observation values count %d" observationsT.RowsCount
     
     let eps = System.Double.Epsilon
 
@@ -239,10 +239,11 @@ let main argv =
 //            |> Seq.mapi (fun i {values=sample} -> Column.Create(res.sampler.Parameters.GetName(i),sample))
 //            |> Table.OfColumns
 //        printfn "done"
-        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)                
-    else                
+        //Table.Save(posterior, sprintf "posterior_%d.csv" !seed)
+    else      
+        ()          
         //simulation            
-
+        (*
         let v0 = 0.228958        
         let v2 = 0.349027
         let v_kp = 0.5
@@ -334,5 +335,5 @@ let main argv =
 
         ds.Commit()        
         
-    
+    *)
     0 // return an integer exit code
