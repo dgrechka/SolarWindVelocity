@@ -186,7 +186,7 @@ let logLikelihoodP (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 [<EntryPoint>]
 let main argv =     
     //config
-    let doEstimate = true
+    let doEstimate = false
     let thinnObs = false
     let checkLglkForSimulation = true
     let seed : uint32 ref = ref 0u
@@ -243,17 +243,26 @@ let main argv =
     else                
         //simulation            
 
-        let v0 = 0.228958        
-        let v2 = 0.349027
-        let v_kp = 0.5
-        let v_bg = 3.65482e-119
-        let d0 = 0.13812        
-        let d2 = 0.890103        
-        let d_kp = 0.5
-        let d_bg = 1.15844e-123
-        let D = 1225.551240
-        let Sigma = 0.0497358
-        let reference_lglk = 11869.9
+//2016-07-14T14:55:12.994253100Z 
+//iteration:924 log-likelihood:11915 improvement:3.75523
+//Vfunc nodes: (0;0.181729) (20;0.867255) slope: 0.0855468
+//Dfunc nodes: (0;0.823733) (20;0.834859) slope: 0.55678
+//background wind V:0.265428 D:5.82408
+//Noise sigma: 0.0520493
+//Earth distance: 1230.243211
+
+
+        let v0 = 0.181729        
+        let v2 = 0.867255
+        let v_kp = 0.0855468
+        let v_bg = 0.265428
+        let d0 = 0.823733        
+        let d2 = 0.834859        
+        let d_kp = 0.55678
+        let d_bg = 5.82408
+        let D = 1230.243211
+        let Sigma = 0.0520493
+        let reference_lglk = 11915.0
 
         //converting back parameters
         let v_p2 = v2/max_velocity        
@@ -267,7 +276,7 @@ let main argv =
             printfn "Simulation mode, checking lglk..."
             let lglk = logLikelihood predictorsT observationsT v_p0 v_p2 v_kp d_p0 d_p2 d_kp v_bg d_bg D Sigma
             printfn "lglk %g" lglk;
-            assert(abs(lglk-reference_lglk)<1e-10)
+            assert(abs(lglk-reference_lglk)<1.0)
             printfn "lglk matches accpected value. Simulating..."
         else
             printfn "lglk check disabled. Simulating..."

@@ -250,11 +250,35 @@ print(a)
 Plotting simulations
 
 ```{r simulations}
-sim1 <- read.csv('ResultData/docker-0.2-seed-6-iter-156.csv')
-sim1.sigma <- to_km_per_s(0.0497358)
+sim1 <- read.csv('ResultData/docker-0.3-seed-1-iter-1510.csv')
+sim1.sigma <- to_km_per_s(0.0542054)
 sim1$lb68 <- sim1$predMean-sim1.sigma
 sim1$ub68 <- sim1$predMean+sim1.sigma
-sim1q1 <- sim1[sim1$obs_time<=127590,] #first quantile
+sim1q1 <- sim1[sim1$obs_time<=95430,] #first 60 days
+
+sim3 <- read.csv('ResultData/docker-0.3-seed-3-iter-1105.csv')
+sim3.sigma <- to_km_per_s(0.0542054)
+sim3$lb68 <- sim3$predMean-sim3.sigma
+sim3$ub68 <- sim3$predMean+sim3.sigma
+sim3q1 <- sim3[sim3$obs_time<=95430,] #first 60 days
+
+sim4 <- read.csv('ResultData/docker-0.3-seed-4-iter-821.csv')
+sim4.sigma <- to_km_per_s(0.0542054)
+sim4$lb68 <- sim4$predMean-sim4.sigma
+sim4$ub68 <- sim4$predMean+sim4.sigma
+sim4q1 <- sim4[sim4$obs_time<=95430,] #first 60 days
+
+sim5 <- read.csv('ResultData/docker-0.3-seed-5-iter-583.csv')
+sim5.sigma <- to_km_per_s(0.0542054)
+sim5$lb68 <- sim5$predMean-sim5.sigma
+sim5$ub68 <- sim5$predMean+sim5.sigma
+sim5q1 <- sim5[sim5$obs_time<=95430,] #first 60 days
+
+sim8 <- read.csv('ResultData/docker-0.3-seed-4-iter-821.csv')
+sim8.sigma <- to_km_per_s(0.0542054)
+sim8$lb68 <- sim8$predMean-sim8.sigma
+sim8$ub68 <- sim8$predMean+sim8.sigma
+sim8q1 <- sim8[sim8$obs_time<=95430,] #first 60 days
 
 b <- ggplot() +
     theme_bw()+
@@ -262,11 +286,40 @@ b <- ggplot() +
     scale_fill_manual(values= color_scale,labels=color_scale_labels)+
   
     geom_point(data=sim1q1,aes(x=obs_time,y=obs),shape=1) +
-    geom_line(data=sim1q1,aes(x=obs_time,y=predMean,color='5'),lwd=1) +
+  
+    geom_line(data=sim1q1,aes(x=obs_time,y=predMean,color='1'),lwd=1) +
     geom_ribbon(data=sim1q1,
                 aes(x=obs_time,
                     ymin=lb68,
+                    ymax=ub68,color='1',fill='1'),
+                alpha=.06) +
+  
+    geom_line(data=sim3q1,aes(x=obs_time,y=predMean,color='3'),lwd=1) +
+    geom_ribbon(data=sim3q1,
+                aes(x=obs_time,
+                    ymin=lb68,
+                    ymax=ub68,color='3',fill='3'),
+                alpha=.06) +
+  
+    geom_line(data=sim4q1,aes(x=obs_time,y=predMean,color='4'),lwd=1) +
+    geom_ribbon(data=sim4q1,
+                aes(x=obs_time,
+                    ymin=lb68,
+                    ymax=ub68,color='4',fill='4'),
+                alpha=.06) +
+
+    geom_line(data=sim5q1,aes(x=obs_time,y=predMean,color='5'),lwd=1) +
+    geom_ribbon(data=sim5q1,
+                aes(x=obs_time,
+                    ymin=lb68,
                     ymax=ub68,color='5',fill='5'),
+                alpha=.06) +
+  
+    geom_line(data=sim8q1,aes(x=obs_time,y=predMean,color='8'),lwd=1) +
+    geom_ribbon(data=sim8q1,
+                aes(x=obs_time,
+                    ymin=lb68,
+                    ymax=ub68,color='8',fill='8'),
                 alpha=.06)
 print(b)
 ```
