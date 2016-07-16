@@ -54,6 +54,14 @@ to_km_per_s <- function(v) {return(v/(1000.0 * 60.0 / 10.0**8.0));}
 #Noise sigma: 0.0514491
 #Earth distance: 1285.718414
 
+vis3d <- prepareVisData(
+  3,
+  11923.2,
+  0.870576,
+  0.944965,
+  0.697326,
+  4.32253)
+
 vis3v <- prepareVisData(
   3,
   11923.2,
@@ -70,6 +78,14 @@ vis3v <- prepareVisData(
 #background wind V:0.265428 D:5.82408
 #Noise sigma: 0.0520493
 #Earth distance: 1230.243211
+
+vis8d <- prepareVisData(
+  8,
+  11915,
+  0.823733,
+  0.834859,
+  0.55678,
+  5.82408)
 
 vis8v <- prepareVisData(
   8,
@@ -88,6 +104,14 @@ vis8v <- prepareVisData(
 #Noise sigma: 0.0535385
 #Earth distance: 1292.090769
 
+vis5d <- prepareVisData(
+  5,
+  11870.8,
+  0.294873,
+  0.310647,
+  0.214628,
+  5.38888e-170)
+
 vis5v <- prepareVisData(
   5,
   11870.8,
@@ -105,6 +129,14 @@ vis5v <- prepareVisData(
 #Noise sigma: 0.0483257
 #SEarth distance: 1386.194369
 
+vis4d <- prepareVisData(
+  4,
+  11855.5,
+  0.0146691,
+  0.0234736,
+  0.175416,
+  8.64625e-39)
+
 vis4v <- prepareVisData(
   4,
   11855.5,
@@ -121,6 +153,14 @@ vis4v <- prepareVisData(
 #background wind V:0.23322 D:3.04009
 #Noise sigma: 0.0542054
 #Earth distance: 1613.963631
+
+vis1d <- prepareVisData(
+  1,
+  11851.6,
+  0.00915377,
+  0.984944,
+  0.897594,
+  3.04009)
 
 vis1v <- prepareVisData(
   1,
@@ -179,14 +219,29 @@ print(a)
 
 ```{r burst densities}
 
-a = ggplot()+
+a = ggplot(data.frame(x = c(0, 20.0)))+
   theme_bw()+
-  ggtitle("Particle burst velocity as a function of coronal hole area")+
+  ggtitle("Particle burst density as a function of coronal hole area")+
   xlab("coronal holes total area (%)")+
-  ylab("particle burst velocity (km/s)")+
+  ylab("particle burst density (portion)")+
 
   scale_linetype_manual(values= linetype_scale,labels=linetype_scale_labels)+
-  scale_color_manual(values= color_scale,labels=color_scale_labels)
+  scale_color_manual(values= color_scale,labels=color_scale_labels) +
+  
+  stat_function(aes(x,linetype='1',color='3'),fun=vis3d$pred) +
+  #geom_hline(aes(yintercept=vis3d$bg,linetype='2',color='3'))+
+  
+  stat_function(aes(x,linetype='1',color='8'),fun=vis8d$pred) +
+  #geom_hline(aes(yintercept=vis8d$bg,linetype='2',color='8')) +
+  
+  stat_function(aes(x,linetype='1',color='5'),fun=vis5d$pred) +
+  #geom_hline(aes(yintercept=vis5d$bg,linetype='2',color='5')) +
+  
+  stat_function(aes(x,linetype='1',color='4'),fun=vis4d$pred) +
+  #geom_hline(aes(yintercept=vis4d$bg,linetype='2',color='4')) +
+  
+  stat_function(aes(x,linetype='1',color='1'),fun=vis1d$pred)
+  #geom_hline(aes(yintercept=vis1d$bg,linetype='2',color='1'))
 
 print(a)
 ```
