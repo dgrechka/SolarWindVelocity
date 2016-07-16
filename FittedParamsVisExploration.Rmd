@@ -15,135 +15,120 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 
 
-prepareVisData <- function(id,lglk,x,y,bg) {
-t <- data.frame(x=x,y=y)
-
-m <- lm(y ~ poly(x,2),data=t)
-m_pred <- function(x) {
-  predict(m,newdata = data.frame(x=x))
-}
-
+prepareVisData <- function(id,lglk,y0,y2,slope_k,bg) {
+  x2<-20.0
+  m <- matrix(c( 0.0, 0.0, 1.0,
+                 x2*x2, x2, 1.0,
+                 2.0*x2, 1.0, 0.0),
+                nrow=3,byrow = T)
+  r <- c(y0, y2, 0.0)
+  s <- solve(m,r)
+  slope <- s[2]*slope_k
+  print(paste0("maximum slope is ",s[2]))
+  print(paste0("effective slope is ",slope))
+  
+  m2 <- matrix(c( 0.0, 0.0, 1.0,
+                 x2*x2, x2, 1.0,
+                 0.0, 1.0, 0.0),
+                nrow=3,byrow = T)
+  r2 <- c(y0, y2, slope)
+  s2 <- solve(m2,r2)
+  
+  func <- function(x) {
+    return(s2[1]*x*x + s2[2]*x+s2[3])
+  }
+  
 return(
-  list(df=t,pred=m_pred,bg=bg,lglk_str=paste0('seed ',id,' (lglk ',lglk,')'))
+  list(pred=func,bg=bg,lglk_str=paste0('seed ',id,' (lglk ',lglk,')'))
 );
 }
 
 to_km_per_s <- function(v) {return(v/(1000.0 * 60.0 / 10.0**8.0));}
 
-#docker 0.2 seed 5
-#016-07-07T01:22:44.018968200Z 
-#iteration:359 log-likelihood:11811.9 improvement:3.90192
-#Vfunc nodes: (0;0.163364) (8.94198;0.393157) (20;0.745155)
-#Dfunc nodes: (0;0.0785473) (10.7175;0.165425) (20;0.192949)
-#background wind V:0.244206 D:0.89821
-#Noise sigma: 0.057559
-#Earth distance: 1414.786295
-
-vis5v <- prepareVisData(
-  5,
-  11811.9,
-  c(0,8.94198,20),
-  to_km_per_s(c(0.163364,0.393157,0.745155)),
-  to_km_per_s(0.244206))
-
-vis5d <- prepareVisData(
-  5,
-  11811.9,
-  c(0,10.7175,20),
-  c(0.0785473,0.165425,0.192949),
-  0.89821)
-
-#docker 0.2 seed 2
-#2016-07-08T05:05:46.779013500Z 
-#iteration:599	log-likelihood:11717.7	improvement:4.61485e-06
-#Vfunc nodes:	(0;0.229267) (8.81142;0.288317) (20;0.435995)
-#Dfunc nodes:	(0;0.123093) (7.85466;0.156194) (20;0.274579)
-#background wind	V:1.3019e-220	D:7.2021e-64
-#Noise sigma:	0.0620503
-#Earth distance:	1322.933822
-
-vis2v <- prepareVisData(
-  2,
-  11717.7,
-  c(0,8.81142,20),
-  to_km_per_s(c(0.229267,0.288317,0.435995)),
-  to_km_per_s(0.0620503))
-
-vis2d <- prepareVisData(
-  2,
-  11717.7,
-  c(0,7.85466,20),
-  c(0.123093,0.156194,0.274579),
-  7.2021e-64)
-
-#docker 0.2 seed 3
-#2016-07-08T12:43:26.477882700Z 
-#iteration:768	log-likelihood:11826.8	improvement:0.0401752
-#Vfunc nodes:	(0;0.228849) (4.32323;0.26853) (20;0.57322)
-#Dfunc nodes:	(0;0.220456) (19.4656;0.229124) (20;0.248359)
-#background wind	V:7.01072e-05	D:0.0265637
-#Noise sigma:	0.0507703
-#Earth distance:	1530.421379
+#docker 0.3 seed 3
+#2016-07-11T16:08:11.935964300Z 
+#iteration:1105 log-likelihood:11923.2 improvement:0.0278582
+#Vfunc nodes: (0;0.180612) (20;0.597612) slope: 0.326881
+#Dfunc nodes: (0;0.870576) (20;0.944965) slope: 0.697326
+#background wind V:0.259682 D:4.32253
+#Noise sigma: 0.0514491
+#Earth distance: 1285.718414
 
 vis3v <- prepareVisData(
   3,
-  11826.8,
-  c(0,4.32323,20),
-  to_km_per_s(c(0.228849,0.26853,0.57322)),
-  to_km_per_s(0.0507703))
+  11923.2,
+  to_km_per_s(0.180612),
+  to_km_per_s(0.597612),
+  0.326881,
+  to_km_per_s(0.259682))
 
-vis3d <- prepareVisData(
-  3,
-  11826.8,
-  c(0,19.4656,20),
-  c(0.220456,0.229124,0.248359),
-  0.0265637)
+#docker 0.3 seed 8
+#2016-07-14T14:55:12.994253100Z 
+#iteration:924 log-likelihood:11915 improvement:3.75523
+#Vfunc nodes: (0;0.181729) (20;0.867255) slope: 0.0855468
+#Dfunc nodes: (0;0.823733) (20;0.834859) slope: 0.55678
+#background wind V:0.265428 D:5.82408
+#Noise sigma: 0.0520493
+#Earth distance: 1230.243211
 
-#docker 0.2 seed 6
-#2016-07-08T11:00:48.486129700Z 
-#iteration:363	log-likelihood:11890	improvement:0.000216178
-#Vfunc nodes:	(0;0.216653) (5.6304;0.263253) (20;0.349027)
-#Dfunc nodes:	(0;0.043982) (18.591;0.0900018) (20;0.146377)
-#background wind	V:1.3233e-104	D:9.22333e-111
-#Noise sigma:	0.0497358
-#Earth distance:	1360.400817
+vis8v <- prepareVisData(
+  8,
+  11915,
+  to_km_per_s(0.181729),
+  to_km_per_s(0.867255),
+  0.0855468,
+  to_km_per_s(0.265428))
 
-vis6v <- prepareVisData(
-  6,
-  11890,
-  c(0,5.6304,20),
-  to_km_per_s(c(0.216653,0.263253,0.349027)),
-  to_km_per_s(0.0497358))
+#docker 0.3 seed 5
+#2016-07-12T05:31:34.962763100Z 
+#iteration:583 log-likelihood:11870.8 improvement:88.4558
+#Vfunc nodes: (0;0.243192) (20;0.429677) slope: 0.0448303
+#Dfunc nodes: (0;0.294873) (20;0.310647) slope: 0.214628
+#background wind V:5.20376e-124 D:5.38888e-170
+#Noise sigma: 0.0535385
+#Earth distance: 1292.090769
 
-vis6d <- prepareVisData(
-  6,
-  11890,
-  c(0,18.591,20),
-  c(0.043982,0.0900018,0.146377),
-  9.22333e-111)
+vis5v <- prepareVisData(
+  5,
+  11870.8,
+  to_km_per_s(0.243192),
+  to_km_per_s(0.429677),
+  0.0448303,
+  to_km_per_s(5.20376e-124))
 
-#docker 0.2 seed 4
-#016-07-08T12:11:04.021707400Z 
-#iteration:724	log-likelihood:11352.3	improvement:1.62316
-#Vfunc nodes:	(0;0.156261) (18.2391;0.272673) (20;0.310817)
-#Dfunc nodes:	(0;0.672667) (13.5319;0.685692) (20;0.835422)
-#background wind	V:0.348864	D:6.00164
-#Noise sigma:	0.0531754
-#Earth distance:	1216.334767
+#docker 0.3 seed 4
+#2016-07-10T21:53:49.075621400Z 
+#iteration:821 log-likelihood:11855.5 improvement:3.63798e-12
+#Vfunc nodes: (0;0.224727) (20;0.40079) slope: 0.35187
+#Dfunc nodes: (0;0.0146691) (20;0.0234736) slope: 0.175416
+#background wind V:7.88056e-248 D:8.64625e-39
+#Noise sigma: 0.0483257
+#SEarth distance: 1386.194369
 
 vis4v <- prepareVisData(
   4,
-  11352.3,
-  c(0,18.2391,20),
-  to_km_per_s(c(0.156261,0.272673,0.310817)),
-  to_km_per_s(0.348864))
+  11855.5,
+  to_km_per_s(0.224727),
+  to_km_per_s(0.40079),
+  0.35187,
+  to_km_per_s(7.88056e-248))
 
-vis4d <- prepareVisData(
-  4,
-  11352.3,
-  c(0,13.5319,20),
-  c(0.672667,0.685692,0.835422),
-  6.00164)
+#docker 0.3 seed 1
+#2016-07-12T16:21:59.274401800Z 
+#iteration:1510 log-likelihood:11851.6 improvement:8.50073
+#Vfunc nodes: (0;0.273536) (20;0.430973) slope: 0.735489
+#Dfunc nodes: (0;0.00915377) (20;0.984944) slope: 0.897594
+#background wind V:0.23322 D:3.04009
+#Noise sigma: 0.0542054
+#Earth distance: 1613.963631
+
+vis1v <- prepareVisData(
+  1,
+  11851.6,
+  to_km_per_s(0.273536),
+  to_km_per_s(0.430973),
+  0.735489,
+  to_km_per_s(0.23322))
 
 ```
 
@@ -152,19 +137,20 @@ vis4d <- prepareVisData(
 linetype_scale <- c('1'='solid','2'='dashed')
 linetype_scale_labels <- c('1'='burst func','2'='background level')
 color_scale <- c(
-        '5'='red',
-        '2'='green',
-        '3'='blue',
-        '6'='purple',
-        '4'='pink')
+        '3'='red',
+        '8'='green',
+        '5'='blue',
+        '1'='purple',
+        '4'='black')
 color_scale_labels <- c(
-        '5'=vis5v$lglk_str,
-        '2'=vis2v$lglk_str,
         '3'=vis3v$lglk_str,
-        '6'=vis6v$lglk_str,
-        '4'=vis4v$lglk_str)
+        '8'=vis8v$lglk_str,
+        '5'=vis5v$lglk_str,
+        '4'=vis4v$lglk_str,
+        '1'=vis1v$lglk_str
+        )
 
-a = ggplot()+
+a <- ggplot(data.frame(x = c(0, 20.0)))+
   theme_bw()+
   ggtitle("Particle burst velocity as a function of coronal hole area")+
   xlab("coronal holes total area (%)")+
@@ -173,30 +159,26 @@ a = ggplot()+
   scale_linetype_manual(values= linetype_scale,labels=linetype_scale_labels)+
   scale_color_manual(values= color_scale,labels=color_scale_labels)+
   
-  geom_point(data=vis5v$df, aes(x=x, y=y,color='5'))+
-  stat_function(data=vis5v$df,aes(x,linetype='1',color='5'),fun=vis5v$pred) +
-  geom_hline(aes(yintercept=vis5v$bg,linetype='2',color='5')) +
-  
-  geom_point(data=vis2v$df, aes(x=x, y=y,color='2'))+
-  stat_function(data=vis2v$df,aes(x,linetype='1',color='2'),fun=vis2v$pred) +
-  geom_hline(aes(yintercept=vis2v$bg,linetype='2',color='2'))+
-
-  geom_point(data=vis3v$df, aes(x=x, y=y,color='3'))+
-  stat_function(data=vis3v$df,aes(x,linetype='1',color='3'),fun=vis3v$pred) +
+  stat_function(aes(x,linetype='1',color='3'),fun=vis3v$pred) +
   geom_hline(aes(yintercept=vis3v$bg,linetype='2',color='3'))+
   
-  geom_point(data=vis6v$df, aes(x=x, y=y,color='6'))+
-  stat_function(data=vis6v$df,aes(x,linetype='1',color='6'),fun=vis6v$pred) +
-  geom_hline(aes(yintercept=vis6v$bg,linetype='2',color='6')) +
-        
-  geom_point(data=vis4v$df, aes(x=x, y=y,color='4'))+
-  stat_function(data=vis4v$df,aes(x,linetype='1',color='4'),fun=vis4v$pred) +
-  geom_hline(aes(yintercept=vis4v$bg,linetype='2',color='4'))
-
+  stat_function(aes(x,linetype='1',color='8'),fun=vis8v$pred) +
+  geom_hline(aes(yintercept=vis8v$bg,linetype='2',color='8')) +
+  
+  stat_function(aes(x,linetype='1',color='5'),fun=vis5v$pred) +
+  geom_hline(aes(yintercept=vis5v$bg,linetype='2',color='5')) +
+  
+  stat_function(aes(x,linetype='1',color='4'),fun=vis4v$pred) +
+  geom_hline(aes(yintercept=vis4v$bg,linetype='2',color='4')) +
+  
+  stat_function(aes(x,linetype='1',color='1'),fun=vis1v$pred) +
+  geom_hline(aes(yintercept=vis1v$bg,linetype='2',color='1'))
+  
 print(a)
 ```
 
 ```{r burst densities}
+
 a = ggplot()+
   theme_bw()+
   ggtitle("Particle burst velocity as a function of coronal hole area")+
@@ -204,62 +186,11 @@ a = ggplot()+
   ylab("particle burst velocity (km/s)")+
 
   scale_linetype_manual(values= linetype_scale,labels=linetype_scale_labels)+
-  scale_color_manual(values= color_scale,labels=color_scale_labels)+
-  
-  geom_point(data=vis5d$df, aes(x=x, y=y,color='5'))+
-  stat_function(data=vis5d$df,aes(x,linetype='1',color='5'),fun=vis5d$pred) +
-  geom_hline(aes(yintercept=vis5d$bg,linetype='2',color='5')) +
-  
-  geom_point(data=vis2d$df, aes(x=x, y=y,color='2'))+
-  stat_function(data=vis2d$df,aes(x,linetype='1',color='2'),fun=vis2d$pred) +
-  geom_hline(aes(yintercept=vis2d$bg,linetype='2',color='2'))+
-
-  geom_point(data=vis3d$df, aes(x=x, y=y,color='3'))+
-  stat_function(data=vis3d$df,aes(x,linetype='1',color='3'),fun=vis3d$pred) +
-  geom_hline(aes(yintercept=vis3d$bg,linetype='2',color='3'))+
-  
-  geom_point(data=vis6d$df, aes(x=x, y=y,color='6'))+
-  stat_function(data=vis6d$df,aes(x,linetype='1',color='6'),fun=vis6d$pred) +
-  geom_hline(aes(yintercept=vis6d$bg,linetype='2',color='6')) +
-        
-  geom_point(data=vis4d$df, aes(x=x, y=y,color='4'))+
-  stat_function(data=vis4d$df,aes(x,linetype='1',color='4'),fun=vis4d$pred) +
-  geom_hline(aes(yintercept=vis4d$bg,linetype='2',color='4'))
+  scale_color_manual(values= color_scale,labels=color_scale_labels)
 
 print(a)
 ```
 
-
-```{r burst densities without seed 4}
-a = ggplot()+
-  theme_bw()+
-  ggtitle("Particle burst velocity as a function of coronal hole area")+
-  xlab("coronal holes total area (%)")+
-  ylab("particle burst velocity (km/s)")+
-
-  scale_linetype_manual(values= linetype_scale,labels=linetype_scale_labels)+
-  scale_color_manual(values= color_scale,labels=color_scale_labels)+
-  
-  geom_point(data=vis5d$df, aes(x=x, y=y,color='5'))+
-  stat_function(data=vis5d$df,aes(x,linetype='1',color='5'),fun=vis5d$pred) +
-  
-  geom_point(data=vis2d$df, aes(x=x, y=y,color='2'))+
-  stat_function(data=vis2d$df,aes(x,linetype='1',color='2'),fun=vis2d$pred) +
-  geom_hline(aes(yintercept=vis2d$bg,linetype='2',color='2'))+
-
-  geom_point(data=vis3d$df, aes(x=x, y=y,color='3'))+
-  stat_function(data=vis3d$df,aes(x,linetype='1',color='3'),fun=vis3d$pred) +
-  geom_hline(aes(yintercept=vis3d$bg,linetype='2',color='3'))+
-  
-  geom_point(data=vis6d$df, aes(x=x, y=y,color='6'))+
-  stat_function(data=vis6d$df,aes(x,linetype='1',color='6'),fun=vis6d$pred) +
-  geom_hline(aes(yintercept=vis6d$bg,linetype='2',color='6')) +
-        
-  geom_point(data=vis4d$df, aes(x=x, y=y,color='4'))+
-  stat_function(data=vis4d$df,aes(x,linetype='1',color='4'),fun=vis4d$pred)
-
-print(a)
-```
 
 Plotting simulations
 
