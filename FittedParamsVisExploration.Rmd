@@ -285,12 +285,18 @@ sim8$ub68 <- sim8$predMean+sim8.sigma
 sim8q1 <- sim8[sim8$obs_time<=95430,] #first 60 days
 sim8q2 <- sim8[sim8$obs_time>95430 & sim8$obs_time<=181830,] #next 60 days
 
+```
+
+```{r}
 b <- ggplot() +
     theme_bw()+
     scale_color_manual(values= color_scale,labels=color_scale_labels)+
     scale_fill_manual(values= color_scale,labels=color_scale_labels)+
+    xlab("model time ticks")+
+    ylab("particle velocity (km/s)")+
+
   
-    geom_point(data=sim1q1,aes(x=obs_time,y=obs),shape=1) +
+    geom_point(data=sim1q1,aes(x=obs_time,y=obs),shape=3) +
   
     geom_line(data=sim1q1,aes(x=obs_time,y=predMean,color='1'),lwd=1) +
     geom_ribbon(data=sim1q1,
