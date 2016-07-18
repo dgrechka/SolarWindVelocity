@@ -186,7 +186,7 @@ let logLikelihoodP (predictorsT: Table) (observationsT: Table) (p: Parameters) =
 [<EntryPoint>]
 let main argv =     
     //config
-    let doEstimate = false
+    let doEstimate = true
     let thinnObs = false
     let checkLglkForSimulation = true
     let seed : uint32 ref = ref 0u
@@ -210,8 +210,8 @@ let main argv =
             ) obs
         else obs
 
-    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 && t < 8000.0) ch_data
-    let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 8000.0) obs
+    let predictorsT = Table.Filter ["ts"] (fun t -> t > 40.0 && t < 3031.0) ch_data
+    let observationsT = Table.Filter ["ts"] (fun t -> t > 150.0 && t < 3031.0) obs
 
     printfn "Predictor values count %d" predictorsT.RowsCount
     printfn "Observation values count %d" observationsT.RowsCount    
