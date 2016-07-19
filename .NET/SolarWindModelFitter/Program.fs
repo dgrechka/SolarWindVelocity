@@ -98,7 +98,7 @@ let getWind (predictorsT: Table) v0p v2p v_kp d0p d2p d_kp =
                 Density= da*areaSq + db*area + dc
             }
             Some(burst)
-    Table.Map ["ts";"Relative_CH_CorrectSphereArea_j"] generatePulse predictorsT |> Seq.choose (fun b -> b)  |> List.ofSeq
+    Table.Map ["ts";"Relative_CH_CorrectSphereArea_spline_211"] generatePulse predictorsT |> Seq.choose (fun b -> b)  |> List.ofSeq
   
 
 let mutable bestLglk = System.Double.NegativeInfinity
@@ -146,16 +146,15 @@ let logLikelihood (predictorsT: Table) (observationsT: Table) v0p v2p v_kp d0p d
         //printfn "was %d now %d" (List.length wind) (List.length optimizedWind)
         (lglk_sum+curLgLk),optimizedWind
 
-    let folded =
-        data |> Seq.toArray |>
-        Array.fold folder (0.0,wind)
+    let dataArray = data |> Seq.toArray
+    let folded = dataArray |> Array.fold folder (0.0,wind)
     
     let res = fst folded
                       
     iteration_counter <- iteration_counter + 1
     if res>bestLglk then        
         printfn "\n----------"
-        printfn "\niteration:%d log-likelihood:%g improvement:%g" iteration_counter res (res-bestLglk)
+        printfn "\niteration:%d log-likelihood:%g lglk/obs:%g improvement:%g" iteration_counter res (res/(float dataArray.Length)) (res-bestLglk)
         printfn "Vfunc nodes: (%g;%g) (%g;%g) slope: %g" 0.0 (v2p*v0p) max_hole v2p v_kp
         printfn "Dfunc nodes: (%g;%g) (%g;%g) slope: %g" 0.0 (d2p*d0p) max_hole d2p d_kp
         printfn "background wind V:%g D:%g" v_b d_b
