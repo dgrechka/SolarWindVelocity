@@ -351,6 +351,11 @@ for(name in consistent_variables) {
 Exporting whole year data
 
 ```{r export}
+write.csv(file='ResultData/CH_features_0211_cleaned_2015.csv',row.names = F,
+          ch_2015_0211)
+write.csv(file='ResultData/CH_features_0193_cleaned_2015.csv',row.names = F,
+          ch_2015_0193)
+
 write.csv(file='ResultData/CH_features_cleaned_2015.csv',row.names = F,
           data.frame(
             ts=joint$ts,
