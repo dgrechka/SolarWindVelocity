@@ -1,0 +1,58 @@
+---
+title: "Solar wind features for ML"
+author: "Dmitry A. Grechka"
+date: "July 19, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading Sun image data
+```{r load_ch}
+ch_2015_0211 <- read.csv('ResultData/CH_features_0211_cleaned_2015.csv')
+ch_2015_0193 <- read.csv('ResultData/CH_features_0193_cleaned_2015.csv')
+```
+
+Loading wind observarions
+```{r load_wind}
+wind_2015 <- read.csv('ResultData/ACE_EPAM_SW_2015.csv');
+```
+
+Smotthing with splines and resampling with 1 hour resolution
+
+```{r splines}
+resample <- function(obs.t,column.prefix='') {
+  left <- ceiling(obs.t$ts[1])
+  right <- floor(obs.t$ts[nrow(obs.t)])
+  knots <- seq(from = left, to = right,by=1)
+
+  results <- data.frame(ts=knots)
+    
+  for(name in names(obs.t)[-1]) {# only _m variables. skiping ts, it has idx 1
+    sp <- smooth.spline(obs.t$ts,obs.t[[name]])
+    synth<-predict(sp, knots)$y
+    results[[paste0(column.prefix,name)]] <- synth
+  }
+  return(results)
+}
+
+ch_2015_0211_m <- ch_2015_0211[,c(T,F)]
+ch_2015_0193_m <- ch_2015_0193[,c(T,F)]
+
+resampled_0211 <- resample(ch_2015_0211_m,'211.')
+resampled_0193 <- resample(ch_2015_0193_m,'193.')
+resampled_wind <- resample(wind_2015)
+
+resampled_ch <- merge(resampled_0193,resampled_0211,by='ts')
+results <- merge(resampled_ch,resampled_wind,by='ts')
+
+summary(results)
+```
+
+```{r exploring}
+corM <- cor(results)
+varMcol<- colorRampPalette(c("red", "white", "blue"))(20)
+heatmap(x = corM, col = varMcol, symm = TRUE)
+```
