@@ -56,3 +56,9 @@ corM <- cor(results)
 varMcol<- colorRampPalette(c("red", "white", "blue"))(20)
 heatmap(x = corM, col = varMcol, symm = TRUE)
 ```
+
+Outputting
+
+```{r output}
+write.csv(file='ResultData/ML_features_2015.csv',results, row.names = F)
+```
