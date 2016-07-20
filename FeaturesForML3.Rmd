@@ -1,0 +1,55 @@
+---
+title: "Solar wind features (PCA)"
+author: "Dmitry A. Grechka"
+date: "July 20, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading data
+
+```{r load}
+features.2015.lagged <- read.csv(file='ResultData/ML_features_2015.lagged.csv')
+```
+
+Libraries
+```{r libraries}
+library(caret)
+
+set.seed(1)
+```
+
+```{r training 3 hours}
+features.2015.lagged.cc <- na.omit(features.2015.lagged)
+
+features.2015.lagged.no_sd <- features.2015.lagged.cc[,!((1:ncol(features.2015.lagged.cc)) %in% grep('_sd',names(features.2015.lagged.cc)))] #omitting _sd variables
+
+features.2015.lagged.3h <- features.2015.lagged.no_sd[,!((1:ncol(features.2015.lagged.no_sd)) %in% grep('_m$|_mean$',names(features.2015.lagged.no_sd)))] #omitting _m and _mean ending variables (no recent values)
+features.2015.lagged.3h$velocity_mean <- features.2015.lagged.no_sd$velocity_mean
+
+
+inTrain <- createDataPartition(y=features.2015.lagged.3h$velocity_mean, p=0.7,list=F)
+
+training <- features.2015.lagged.3h[inTrain,]
+testing <- features.2015.lagged.3h[-inTrain,]
+testing.notime <- training[,names(training) != 'ts']
+```
+
+```{r pca}
+predictorsOnly <- training[,names(training) != 'velocity_mean']
+
+pcaPreProc <- preProcess(predictorsOnly,method="pca")
+pcaPreProc
+pcaPredictedTraining <- predict(pcaPreProc,predictorsOnly)
+pcaPredictedTraining$velocity_mean <- training$velocity_mean
+```
+
+```{r training}
+#brnnModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="brnn")
+dnnModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="dnn")
+rfModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="rf",verbose=T)
+
+```
