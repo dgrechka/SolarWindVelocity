@@ -1,0 +1,82 @@
+---
+title: "Solar wind features for ML (lag variables)"
+author: "Dmitry A. Grechka"
+date: "July 20, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Initial data load
+
+```{r load}
+features_2015 <- read.csv('ResultData/ML_features_2015.csv')
+```
+
+Mixing up lag vars
+
+```{r lagFunc}
+
+#features_2015 <- features_2015[1:150,]
+
+addLagVariables <- function(d,lag.min,lag.step,lag.max) {
+  keys <- names(d)
+  N <- nrow(d)
+  M <- ncol(d)
+
+  #precreating lag variables
+  for(name in keys) {
+      for(lag in seq(from=lag.min,to=lag.max,by=lag.step)) {
+        d[[paste0(name,'.',lag)]] <- numeric(N)
+      }
+  }
+  
+  keys.ext <- names(d)
+  
+  #filling up lag variables
+  for (row.idx in 1:N){
+    if(row.idx %% 100 == 0)
+      print(paste0(row.idx,' out of ',N))
+    for(name in keys) {
+      col.idx <- (keys==name)
+      for(lag in seq(from=lag.min,to=lag.max,by=lag.step)) {
+        col.idx.lag <- (keys.ext == paste0(name,'.',lag))
+        row.idx.lag <- row.idx-lag
+        if (row.idx.lag < 1)
+          d[row.idx,col.idx.lag] <- NA
+        else
+          d[row.idx,col.idx.lag] <- d[row.idx.lag,col.idx]
+      }
+    }
+  }
+  
+  return(d);
+}
+```
+
+```{r lags}
+
+lag.min <- 3
+lag.step <- 3
+lag.max <- 144
+
+
+features_2015.no_time <- features_2015[,-1]
+features_2015.no_time.lagged <- addLagVariables(
+  features_2015.no_time,
+  lag.min,lag.step,lag.max)
+
+str(features_2015.no_time.lagged)
+```
+
+Outputting
+
+```{r outputting}
+
+features_2015.lagged <- features_2015.no_time.lagged
+features_2015.lagged$ts <- features_2015$ts
+
+write.csv(file='ResultData/ML_features_2015.lagged.csv',features_2015.lagged,row.names = F)
+```
