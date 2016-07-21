@@ -13,6 +13,9 @@ Loading data
 
 ```{r load}
 features.2015.lagged <- read.csv(file='ResultData/ML_features_2015.lagged.csv')
+
+#for debugging using only 500 records
+#features.2015.lagged <- features.2015.lagged[1:500,]
 ```
 
 Libraries
@@ -22,34 +25,122 @@ library(caret)
 set.seed(1)
 ```
 
-```{r training 3 hours}
+```{r omiting NA containting and SD vars}
 features.2015.lagged.cc <- na.omit(features.2015.lagged)
 
 features.2015.lagged.no_sd <- features.2015.lagged.cc[,!((1:ncol(features.2015.lagged.cc)) %in% grep('_sd',names(features.2015.lagged.cc)))] #omitting _sd variables
 
-features.2015.lagged.3h <- features.2015.lagged.no_sd[,!((1:ncol(features.2015.lagged.no_sd)) %in% grep('_m$|_mean$',names(features.2015.lagged.no_sd)))] #omitting _m and _mean ending variables (no recent values)
-features.2015.lagged.3h$velocity_mean <- features.2015.lagged.no_sd$velocity_mean
+#inTrain <- createDataPartition(y=features.2015.lagged.no_sd$velocity_mean, p=0.7,list=F)
 
+training <- features.2015.lagged.no_sd[1:1000,]
+testing <- features.2015.lagged.no_sd[1001:2000,]
+```
 
-inTrain <- createDataPartition(y=features.2015.lagged.3h$velocity_mean, p=0.7,list=F)
+```{r}
 
-training <- features.2015.lagged.3h[inTrain,]
-testing <- features.2015.lagged.3h[-inTrain,]
-testing.notime <- training[,names(training) != 'ts']
+prepareForTraining <- function(dataSet,simulated) {
+  alreadySimulated = ncol(simulated)
+  
+  dataSet1 <- dataSet[,!((1:ncol(dataSet)) %in% grep('_m$|_mean$',names(dataSet)))]
+  dataSet1$velocity_mean <- dataSet$velocity_mean
+  if(alreadySimulated>0) {
+    for(i in 1:alreadySimulated) {
+      currentOffset <- i*3;
+      dataSet1 <- dataSet1[,!((1:ncol(dataSet1)) %in% grep(paste0('.',currentOffset,'$'),names(dataSet1)))]
+      dataSet1[[paste0('velocity_mean.',currentOffset)]] <-
+        simulated[,alreadySimulated-i+1]
+    }
+  }
+  return(dataSet1);
+}
 ```
 
 ```{r pca}
-predictorsOnly <- training[,names(training) != 'velocity_mean']
+getPCA <- function(dataSet){
+  predictorsOnly <- dataSet[,names(dataSet) != 'velocity_mean']
 
-pcaPreProc <- preProcess(predictorsOnly,method="pca")
-pcaPreProc
-pcaPredictedTraining <- predict(pcaPreProc,predictorsOnly)
-pcaPredictedTraining$velocity_mean <- training$velocity_mean
+  pcaPreProc <- preProcess(predictorsOnly,method="pca")
+  pcaPreProc
+  pcaPredictedTraining <- predict(pcaPreProc,predictorsOnly)
+  pcaPredictedTraining$velocity_mean <- dataSet$velocity_mean
+  return(list(preproc=pcaPreProc,data=pcaPredictedTraining))
+}
 ```
 
 ```{r training}
-#brnnModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="brnn")
-dnnModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="dnn")
-rfModel<-train(velocity_mean ~ .,data = pcaPredictedTraining,method="rf",verbose=T)
 
+simulated <- matrix(nrow=nrow(training),ncol=0)
+
+simulators <- vector(mode="list")
+
+trControl <- trainControl(verboseIter=T,number = 2)
+
+sds <- numeric(0)
+sds.acc <- numeric(0)
+sds.sqr.sum <- 0;
+  
+training.no_time <- training[,names(training)!= 'ts']
+
+for(i in 0:15) {
+  prepared <- prepareForTraining(training.no_time,simulated);
+  pcas <- getPCA(prepared)
+  model <- train(velocity_mean ~ .,data = pcas$data,method="rf", verbose=T,trControl=trControl)
+  simulatedCurrent <- predict(model,newdata = pcas$data)
+  simulated <- cbind(simulated,simulatedCurrent)
+  
+  currentRMSE <- model$results[model$results$mtry == model$bestTune$mtry,]$RMSE
+  sds <- c(sds,currentRMSE)
+  sds.sqr.sum <- sds.sqr.sum + currentRMSE*currentRMSE;
+  sds.acc <- c(sds.acc,sqrt(sds.sqr.sum))
+  
+    
+  simulators[[paste0('offset.',(i+1)*3)]] <- list(
+    predictorNames = names(prepared)[names(prepared) != 'velocity_mean'],
+    preproc = pcas$preproc,
+    model = model,
+    metrics = model$results[model$results$mtry == model$bestTune$mtry,]
+  )
+}
+
+save(file='Rf_Predictors_3H_1000obs.Rdata',simulators)
+```
+
+```{r outputing}
+N <- nrow(testing)
+results <- data.frame(ts=testing$ts,vel=testing$velocity_mean)
+firstIdx <- 1001
+for(i in 1:144) {
+  results[[paste0('vel.-',i)]] <-
+    features.2015.lagged.no_sd$velocity_mean[(firstIdx-i):(firstIdx-i+N-1)]
+}
+for(i in 1:48) {
+  results[[paste0('vel.+',i)]] <-
+    features.2015.lagged.no_sd$velocity_mean[(firstIdx+i):(firstIdx+i+N-1)]
+}
+
+for(i in 0:15) {
+  results[[paste0('vel.p.+',(i+1)*3)]] <- numeric(N)
+}
+for(i in 0:15) {
+  results[[paste0('vel.p.sd.+',(i+1)*3)]] <- numeric(N)
+}
+
+for(i in 0:15) {
+  currentOffset <- (i+1)*3
+  currentSim <- simulators[[paste0('offset.',currentOffset)]];
+  preproc <- currentSim$preproc;
+  transformed <- predict(preproc,newdata=testing)
+  currentSimulated <-predict(currentSim$model,
+                             newdata = transformed)
+  results[[paste0('vel.p.+',(i+1)*3)]][1:(N-currentOffset)] <-
+    currentSimulated[1+currentOffset:N]
+  results[[paste0('vel.p.+',(i+1)*3)]][(N-currentOffset+1):N] <- NA
+  results[[paste0('vel.p.sd.+',(i+1)*3)]][1:(N-currentOffset)] <-
+    rep(sds.acc[i+1],N)
+  results[[paste0('vel.p.sd.+',(i+1)*3)]][(N-currentOffset+1):N] <- NA
+}
+```
+
+```{r outputing}
+write.csv(file='ResultData/MLSimulation.csv',row.names = F,results)
 ```
