@@ -41,7 +41,7 @@ testing <- features.2015.lagged.no_sd[1001:2000,]
 prepareForTraining <- function(dataSet,simulated) {
   alreadySimulated = ncol(simulated)
   
-  dataSet1 <- dataSet[,!((1:ncol(dataSet)) %in% grep('_m$|_mean$',names(dataSet)))]
+  dataSet1 <- dataSet[,!((1:ncol(dataSet)) %in% grep('_m$|_mean$',names(dataSet)))] #leaving only lagged
   dataSet1$velocity_mean <- dataSet$velocity_mean
   if(alreadySimulated>0) {
     for(i in 1:alreadySimulated) {
@@ -60,7 +60,7 @@ getPCA <- function(dataSet){
   predictorsOnly <- dataSet[,names(dataSet) != 'velocity_mean']
 
   pcaPreProc <- preProcess(predictorsOnly,method="pca")
-  pcaPreProc
+  
   pcaPredictedTraining <- predict(pcaPreProc,predictorsOnly)
   pcaPredictedTraining$velocity_mean <- dataSet$velocity_mean
   return(list(preproc=pcaPreProc,data=pcaPredictedTraining))
@@ -73,7 +73,7 @@ simulated <- matrix(nrow=nrow(training),ncol=0)
 
 simulators <- vector(mode="list")
 
-trControl <- trainControl(verboseIter=T,number = 2)
+trControl <- trainControl(verboseIter=F,number = 5)
 
 sds <- numeric(0)
 sds.acc <- numeric(0)
@@ -82,20 +82,21 @@ sds.sqr.sum <- 0;
 training.no_time <- training[,names(training)!= 'ts']
 
 for(i in 0:15) {
-  prepared <- prepareForTraining(training.no_time,simulated);
-  pcas <- getPCA(prepared)
-  model <- train(velocity_mean ~ .,data = pcas$data,method="rf", verbose=T,trControl=trControl)
+  prepeared <- prepareForTraining(training.no_time,simulated);
+  pcas <- getPCA(prepeared)
+  model <- train(velocity_mean ~ .,data = pcas$data,method="rf", trControl=trControl)
   simulatedCurrent <- predict(model,newdata = pcas$data)
   simulated <- cbind(simulated,simulatedCurrent)
-  
-  currentRMSE <- model$results[model$results$mtry == model$bestTune$mtry,]$RMSE
-  sds <- c(sds,currentRMSE)
-  sds.sqr.sum <- sds.sqr.sum + currentRMSE*currentRMSE;
+  #currentRMSE <- model$results[model$results$mtry == model$bestTune$mtry,]$RMSE
+  rmse <- sqrt(sum((training.no_time$velocity_mean-simulated)^2))
+  sds <- c(sds,rmse)
+  sds.sqr.sum <- sds.sqr.sum + rmse*rmse;
   sds.acc <- c(sds.acc,sqrt(sds.sqr.sum))
-  
+  rmse <- sqrt(sum((training.no_time$velocity_mean-simulated)^2))
+  cat(paste0('offset ',(i+1)*3,'; accumulative RMSE ',sqrt(sds.sqr.sum)),' current RMSE ',rmse,'\n')
     
   simulators[[paste0('offset.',(i+1)*3)]] <- list(
-    predictorNames = names(prepared)[names(prepared) != 'velocity_mean'],
+    predictorNames = names(prepeared)[names(prepeared) != 'velocity_mean'],
     preproc = pcas$preproc,
     model = model,
     metrics = model$results[model$results$mtry == model$bestTune$mtry,]
@@ -142,5 +143,5 @@ for(i in 0:15) {
 ```
 
 ```{r outputing}
-write.csv(file='ResultData/MLSimulation.csv',row.names = F,results)
+write.csv(file='ResultData/MLSimulation.csv',row.names = F,na = 'NaN',results)
 ```
