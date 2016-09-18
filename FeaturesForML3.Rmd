@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+experiment_title <- 'method-rf_m-1000_PCA-95_cv-resampling5';
+
 ```
 
 Loading data
@@ -32,8 +35,8 @@ features.2015.lagged.no_sd <- features.2015.lagged.cc[,!((1:ncol(features.2015.l
 
 #inTrain <- createDataPartition(y=features.2015.lagged.no_sd$velocity_mean, p=0.7,list=F)
 
-training <- features.2015.lagged.no_sd[1:7000,]
-testing <- features.2015.lagged.no_sd[7001:8730,]
+training <- features.2015.lagged.no_sd[1:1000,]
+testing <- features.2015.lagged.no_sd[2001:3000,]
 ```
 
 ```{r}
@@ -60,6 +63,7 @@ getPCA <- function(dataSet){
   predictorsOnly <- dataSet[,names(dataSet) != 'velocity_mean']
 
   pcaPreProc <- preProcess(predictorsOnly,method="pca")
+  #pcaPreProc <- preProcess(predictorsOnly,method=c("center", "scale"))
   
   pcaPredictedTraining <- predict(pcaPreProc,predictorsOnly)
   pcaPredictedTraining$velocity_mean <- dataSet$velocity_mean
@@ -84,6 +88,7 @@ training.no_time <- training[,names(training)!= 'ts']
 for(i in 0:15) {
   prepeared <- prepareForTraining(training.no_time,simulated);
   pcas <- getPCA(prepeared)
+  print(pcas$preproc);
   model <- train(velocity_mean ~ .,data = pcas$data,method="rf", trControl=trControl)
   simulatedCurrent <- predict(model,newdata = pcas$data)
   simulated <- cbind(simulated,simulatedCurrent)
@@ -103,10 +108,10 @@ for(i in 0:15) {
   )
 }
 
-save(file='Rf_Predictors_3H_1000obs.Rdata',simulators)
+save(file=paste0(experiment_title,'.Rdata'),simulators)
 ```
 
-```{r outputing}
+```{r outputing_comp}
 N <- nrow(testing)
 results <- data.frame(ts=testing$ts,vel=testing$velocity_mean)
 firstIdx <- 1001
@@ -143,5 +148,5 @@ for(i in 0:15) {
 ```
 
 ```{r outputing}
-write.csv(file='ResultData/MLSimulation.csv',row.names = F,na = 'NaN',results)
+write.csv(file=paste0('ResultData/sim_',experiment_title,'.csv'),row.names = F,na = 'NaN',results)
 ```
